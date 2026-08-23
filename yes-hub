@@ -188,25 +188,15 @@ divider.BorderSizePixel = 0
 divider.Parent = main
 
 -- Navigation
-local nav = text(main, "Navigation", 10)
+local nav = text(main, "Features", 10)
 nav.Size = UDim2.fromOffset(125, 18)
 nav.Position = UDim2.fromOffset(20, 88)
 nav.TextColor3 = THEME.MUTED
 
-local homeBtn = button(main, "Home")
-homeBtn.Size = UDim2.fromOffset(125, 36)
-homeBtn.Position = UDim2.fromOffset(18, 113)
-homeBtn.TextXAlignment = Enum.TextXAlignment.Left
-
-local modulesBtn = button(main, "Modules")
-modulesBtn.Size = UDim2.fromOffset(125, 36)
-modulesBtn.Position = UDim2.fromOffset(18, 155)
-modulesBtn.TextXAlignment = Enum.TextXAlignment.Left
-
-local settingsBtn = button(main, "Settings")
-settingsBtn.Size = UDim2.fromOffset(125, 36)
-settingsBtn.Position = UDim2.fromOffset(18, 197)
-settingsBtn.TextXAlignment = Enum.TextXAlignment.Left
+local ringNav = button(main, "Ring")
+ringNav.Size = UDim2.fromOffset(125, 36)
+ringNav.Position = UDim2.fromOffset(18, 113)
+ringNav.TextXAlignment = Enum.TextXAlignment.Center
 
 -- Page container
 local pages = Instance.new("Frame")
@@ -340,98 +330,98 @@ iyButton.MouseButton1Click:Connect(function()
 	statusText.Text = "Infinite Yield module is not configured."
 end)
 
--- MODULES
-local modules = Instance.new("Frame")
-modules.Size = UDim2.fromScale(1, 1)
-modules.BackgroundTransparency = 1
-modules.Visible = false
-modules.Parent = pages
+local headerSettings = button(main, "Settings")
+headerSettings.Size = UDim2.fromOffset(76, 28)
+headerSettings.Position = UDim2.new(1, -94, 0, 48)
+headerSettings.TextSize = 10
+headerSettings.TextXAlignment = Enum.TextXAlignment.Center
+headerSettings.MouseButton1Click:Connect(function()
+	click()
+	ringPage.Visible = false
+	settings.Visible = true
+end)
 
-local modulesTitle = text(modules, "Modules", 19)
-modulesTitle.Size = UDim2.new(1, -205, 0, 28)
-modulesTitle.Position = UDim2.fromOffset(4, 0)
+-- DIRECT RING MODULE
+local ringPage = Instance.new("Frame")
+ringPage.Size = UDim2.new(1, -174, 1, -94)
+ringPage.Position = UDim2.fromOffset(163, 84)
+ringPage.BackgroundTransparency = 1
+ringPage.Parent = pages
 
-local modulesSub = text(modules, "Super Ring V5", 11)
-modulesSub.Size = UDim2.new(1, -205, 0, 18)
-modulesSub.Position = UDim2.fromOffset(4, 29)
-modulesSub.TextColor3 = THEME.MUTED
+local ringTitle = text(ringPage, "Ring", 19)
+ringTitle.Size = UDim2.new(1, -10, 0, 28)
+ringTitle.Position = UDim2.fromOffset(4, 0)
 
-local moduleList = Instance.new("ScrollingFrame")
-moduleList.Size = UDim2.fromOffset(150, 285)
-moduleList.Position = UDim2.fromOffset(4, 57)
-moduleList.BackgroundTransparency = 1
-moduleList.BorderSizePixel = 0
-moduleList.ScrollBarThickness = 2
-moduleList.Parent = modules
+local ringSub = text(ringPage, "Super Ring V5", 11)
+ringSub.Size = UDim2.new(1, -10, 0, 18)
+ringSub.Position = UDim2.fromOffset(4, 29)
+ringSub.TextColor3 = THEME.MUTED
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
-layout.Parent = moduleList
+local ringCard = Instance.new("Frame")
+ringCard.Size = UDim2.new(1, -8, 0, 220)
+ringCard.Position = UDim2.fromOffset(4, 58)
+ringCard.BackgroundColor3 = THEME.PANEL
+ringCard.BackgroundTransparency = .12
+ringCard.BorderSizePixel = 0
+ringCard.Parent = ringPage
+round(ringCard, 10)
+stroke(ringCard)
 
-local moduleUI = Instance.new("Frame")
-moduleUI.Size = UDim2.new(1, -174, 1, -60)
-moduleUI.Position = UDim2.fromOffset(170, 57)
-moduleUI.BackgroundColor3 = THEME.PANEL
-moduleUI.BackgroundTransparency = .12
-moduleUI.BorderSizePixel = 0
-moduleUI.Parent = modules
-round(moduleUI, 10)
-stroke(moduleUI)
+local function makeToggle(parent, name, y, initial)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, -24, 0, 42)
+	row.Position = UDim2.fromOffset(12, y)
+	row.BackgroundColor3 = THEME.BUTTON
+	row.BorderSizePixel = 0
+	row.Parent = parent
+	round(row, 8)
 
-local moduleTitle = text(moduleUI, "Module UI", 14)
-moduleTitle.Size = UDim2.new(1, -24, 0, 24)
-moduleTitle.Position = UDim2.fromOffset(12, 12)
+	local lbl = text(row, name, 11)
+	lbl.Size = UDim2.new(1, -90, 1, 0)
+	lbl.Position = UDim2.fromOffset(12, 0)
+	lbl.TextYAlignment = Enum.TextYAlignment.Center
 
-local moduleInfo = text(moduleUI, "Select a module from the list.", 10)
-moduleInfo.Size = UDim2.new(1, -24, 0, 45)
-moduleInfo.Position = UDim2.fromOffset(12, 40)
-moduleInfo.TextColor3 = THEME.MUTED
-moduleInfo.TextWrapped = true
+	local toggle = Instance.new("TextButton")
+	toggle.Size = UDim2.fromOffset(48, 26)
+	toggle.Position = UDim2.new(1, -60, .5, -13)
+	toggle.BackgroundColor3 = initial and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
+	toggle.BorderSizePixel = 0
+	toggle.Text = ""
+	toggle.AutoButtonColor = false
+	toggle.Parent = row
+	round(toggle, 13)
 
-local superRingOptions = {
-	"Super Ring V5",
-	"Ring Enabled",
-	"Ring Radius",
-	"Ring Speed",
-	"Target Player",
-	"Visuals",
-	"Notifications",
-}
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.fromOffset(20, 20)
+	knob.Position = initial and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
+	knob.BackgroundColor3 = THEME.WHITE
+	knob.BorderSizePixel = 0
+	knob.Parent = toggle
+	round(knob, 10)
 
-for i, optionName in ipairs(superRingOptions) do
-	local b = button(moduleList, optionName)
-	b.Size = UDim2.new(1, -5, 0, 34)
-	b.Text = optionName
-	b.TextXAlignment = Enum.TextXAlignment.Center
-	b.TextYAlignment = Enum.TextYAlignment.Center
-
-	b.MouseButton1Click:Connect(function()
+	local state = initial
+	toggle.MouseButton1Click:Connect(function()
+		state = not state
+		TweenService:Create(toggle, TweenInfo.new(.16), {
+			BackgroundColor3 = state and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
+		}):Play()
+		TweenService:Create(knob, TweenInfo.new(.16), {
+			Position = state and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
+		}):Play()
 		click()
-		moduleTitle.Text = optionName
-
-		if optionName == "Super Ring V5" then
-			moduleInfo.Text = "Super Ring V5 controls and status."
-		elseif optionName == "Ring Enabled" then
-			moduleInfo.Text = "Toggle the Super Ring V5 ring feature."
-		elseif optionName == "Ring Radius" then
-			moduleInfo.Text = "Configure the ring radius."
-		elseif optionName == "Ring Speed" then
-			moduleInfo.Text = "Configure the ring speed."
-		elseif optionName == "Target Player" then
-			moduleInfo.Text = "Choose the target player for the feature."
-		elseif optionName == "Visuals" then
-			moduleInfo.Text = "Configure Super Ring V5 visual settings."
-		elseif optionName == "Notifications" then
-			moduleInfo.Text = "Configure Super Ring V5 notifications."
-		end
 	end)
+
+	return toggle
 end
 
-local function updateCanvas()
-	moduleList.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 5)
-end
-layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-updateCanvas()
+makeToggle(ringCard, "Ring Enabled", 14, false)
+makeToggle(ringCard, "Ring Visuals", 62, true)
+makeToggle(ringCard, "Notifications", 110, true)
+
+local ringInfo = text(ringPage, "Super Ring V5", 10)
+ringInfo.Size = UDim2.new(1, -10, 0, 18)
+ringInfo.Position = UDim2.fromOffset(4, 292)
+ringInfo.TextColor3 = THEME.MUTED
 
 -- SETTINGS
 local settings = Instance.new("Frame")
@@ -577,9 +567,6 @@ local function page(name)
 	settingsBtn.BackgroundColor3 = name == "Settings" and THEME.HOVER or THEME.BUTTON
 end
 
-homeBtn.MouseButton1Click:Connect(function() click(); page("Home") end)
-modulesBtn.MouseButton1Click:Connect(function() click(); page("Modules") end)
-settingsBtn.MouseButton1Click:Connect(function() click(); page("Settings") end)
 
 -- Playtime
 task.spawn(function()
