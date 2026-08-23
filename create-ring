@@ -422,6 +422,7 @@ IncreaseRadius.MouseButton1Click:Connect(function()
 end)
 
 -- Startup notification
+-- No custom icon/avatar is supplied. Roblox may still display its default notification icon.
 StarterGui:SetCore("SendNotification", {
     Title = "Super Ring V5",
     Text = "enjoy",
