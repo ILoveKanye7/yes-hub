@@ -1,0 +1,326 @@
+--[[
+    YesHub
+    Single-file UI shell
+    Author: yes.dev
+
+    Clean dark menu designed as a feature hub.
+    Add your own game-safe features inside the FEATURE REGISTRY section.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Prevent duplicate menus.
+local existing = PlayerGui:FindFirstChild("YesHub")
+if existing then
+    existing:Destroy()
+end
+
+--==================================================
+-- THEME
+--==================================================
+
+local Theme = {
+    Background = Color3.fromRGB(10, 10, 10),
+    Surface = Color3.fromRGB(17, 17, 17),
+    Surface2 = Color3.fromRGB(24, 24, 24),
+    Button = Color3.fromRGB(30, 30, 30),
+    ButtonHover = Color3.fromRGB(40, 40, 40),
+    Border = Color3.fromRGB(58, 58, 58),
+    Text = Color3.fromRGB(255, 255, 255),
+    Muted = Color3.fromRGB(145, 145, 145),
+}
+
+--==================================================
+-- FEATURE REGISTRY
+-- Add future game-safe features here.
+--==================================================
+
+local Features = {
+    {
+        Name = "Feature 1",
+        Description = "Placeholder feature",
+        Enabled = false,
+        Callback = function(enabled)
+            print("Feature 1:", enabled)
+        end
+    },
+    {
+        Name = "Feature 2",
+        Description = "Placeholder feature",
+        Enabled = false,
+        Callback = function(enabled)
+            print("Feature 2:", enabled)
+        end
+    },
+    {
+        Name = "Feature 3",
+        Description = "Placeholder feature",
+        Enabled = false,
+        Callback = function(enabled)
+            print("Feature 3:", enabled)
+        end
+    },
+}
+
+--==================================================
+-- HELPERS
+--==================================================
+
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = parent
+    return c
+end
+
+local function stroke(parent, color, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Transparency = 0.1
+    s.Parent = parent
+    return s
+end
+
+local function label(parent, text, size, font)
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = Theme.Text
+    l.Font = font or Enum.Font.Gotham
+    l.TextSize = size
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    return l
+end
+
+--==================================================
+-- GUI
+--==================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "YesHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 430, 0, 300)
+Main.Position = UDim2.new(0.5, -215, 0.5, -150)
+Main.BackgroundColor3 = Theme.Background
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+corner(Main, 14)
+stroke(Main, Theme.Border, 1)
+
+--==================================================
+-- HEADER
+--==================================================
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, -20, 0, 54)
+Header.Position = UDim2.new(0, 10, 0, 10)
+Header.BackgroundColor3 = Theme.Surface
+Header.BorderSizePixel = 0
+Header.Parent = Main
+
+corner(Header, 10)
+stroke(Header, Theme.Border, 1)
+
+local Title = label(Header, "YESHUB", 20, Enum.Font.GothamBold)
+Title.Size = UDim2.new(1, -60, 0, 26)
+Title.Position = UDim2.new(0, 14, 0, 6)
+
+local Subtitle = label(Header, "yes.dev  •  v1", 11, Enum.Font.GothamMedium)
+Subtitle.Size = UDim2.new(1, -60, 0, 18)
+Subtitle.Position = UDim2.new(0, 14, 0, 31)
+Subtitle.TextColor3 = Theme.Muted
+
+local Minimize = Instance.new("TextButton")
+Minimize.Size = UDim2.new(0, 30, 0, 30)
+Minimize.Position = UDim2.new(1, -40, 0, 12)
+Minimize.Text = "−"
+Minimize.TextColor3 = Theme.Text
+Minimize.TextSize = 18
+Minimize.Font = Enum.Font.GothamBold
+Minimize.BackgroundColor3 = Theme.Button
+Minimize.BorderSizePixel = 0
+Minimize.Parent = Header
+
+corner(Minimize, 8)
+stroke(Minimize, Theme.Border, 1)
+
+--==================================================
+-- CONTENT
+--==================================================
+
+local Content = Instance.new("ScrollingFrame")
+Content.Name = "FeatureList"
+Content.Size = UDim2.new(1, -20, 1, -82)
+Content.Position = UDim2.new(0, 10, 0, 72)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 3
+Content.ScrollBarImageColor3 = Theme.Border
+Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+Content.Parent = Main
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 8)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = Content
+
+local Padding = Instance.new("UIPadding")
+Padding.PaddingLeft = UDim.new(0, 2)
+Padding.PaddingRight = UDim.new(0, 2)
+Padding.PaddingBottom = UDim.new(0, 8)
+Padding.Parent = Content
+
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 8)
+end)
+
+--==================================================
+-- FEATURE BUTTONS
+--==================================================
+
+for _, feature in ipairs(Features) do
+    local Row = Instance.new("Frame")
+    Row.Size = UDim2.new(1, -4, 0, 58)
+    Row.BackgroundColor3 = Theme.Surface
+    Row.BorderSizePixel = 0
+    Row.Parent = Content
+
+    corner(Row, 10)
+    stroke(Row, Theme.Border, 1)
+
+    local Name = label(Row, feature.Name, 14, Enum.Font.GothamSemibold)
+    Name.Size = UDim2.new(1, -110, 0, 22)
+    Name.Position = UDim2.new(0, 12, 0, 7)
+
+    local Description = label(Row, feature.Description, 11, Enum.Font.Gotham)
+    Description.Size = UDim2.new(1, -110, 0, 18)
+    Description.Position = UDim2.new(0, 12, 0, 30)
+    Description.TextColor3 = Theme.Muted
+
+    local Toggle = Instance.new("TextButton")
+    Toggle.Size = UDim2.new(0, 82, 0, 34)
+    Toggle.Position = UDim2.new(1, -94, 0.5, -17)
+    Toggle.TextColor3 = Theme.Text
+    Toggle.Font = Enum.Font.GothamSemibold
+    Toggle.TextSize = 12
+    Toggle.BorderSizePixel = 0
+    Toggle.Parent = Row
+
+    corner(Toggle, 8)
+    local ToggleStroke = stroke(Toggle, Theme.Border, 1)
+
+    local function refresh()
+        Toggle.Text = feature.Enabled and "ENABLED" or "DISABLED"
+        Toggle.BackgroundColor3 = feature.Enabled
+            and Color3.fromRGB(48, 48, 48)
+            or Theme.Button
+    end
+
+    refresh()
+
+    Toggle.MouseEnter:Connect(function()
+        Toggle.BackgroundColor3 = Theme.ButtonHover
+    end)
+
+    Toggle.MouseLeave:Connect(function()
+        refresh()
+    end)
+
+    Toggle.MouseButton1Click:Connect(function()
+        feature.Enabled = not feature.Enabled
+        refresh()
+
+        if feature.Callback then
+            task.spawn(feature.Callback, feature.Enabled)
+        end
+    end)
+end
+
+--==================================================
+-- DRAGGING
+--==================================================
+
+local dragging = false
+local dragStart
+local startPosition
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPosition = Main.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not dragging then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        local delta = input.Position - dragStart
+
+        Main.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+--==================================================
+-- MINIMIZE
+--==================================================
+
+local minimized = false
+local normalSize = UDim2.new(0, 430, 0, 300)
+local minimizedSize = UDim2.new(0, 430, 0, 74)
+
+Minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+
+    if minimized then
+        Content.Visible = false
+        Main:TweenSize(
+            minimizedSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.2,
+            true
+        )
+        Minimize.Text = "+"
+    else
+        Content.Visible = true
+        Main:TweenSize(
+            normalSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.2,
+            true
+        )
+        Minimize.Text = "−"
+    end
+end)
