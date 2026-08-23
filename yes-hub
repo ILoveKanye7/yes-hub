@@ -1,259 +1,722 @@
 --========================================================
 -- YES-HUB | by yes.dev
--- COMPLETE SINGLE-FILE UI
+-- COMPLETE SINGLE-FILE UI — CLEAN REWRITE
 --========================================================
 
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local SoundService = game:GetService("SoundService")
+local SoundService     = game:GetService("SoundService")
 
-local player = Players.LocalPlayer
+local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+-- Destroy any previous instance
 local old = playerGui:FindFirstChild("YesHub")
 if old then old:Destroy() end
 
-local THEME = {
-	BG = Color3.fromRGB(8, 8, 8),
-	PANEL = Color3.fromRGB(16, 16, 16),
-	BUTTON = Color3.fromRGB(25, 25, 25),
-	HOVER = Color3.fromRGB(36, 36, 36),
-	BORDER = Color3.fromRGB(50, 50, 50),
-	WHITE = Color3.fromRGB(255, 255, 255),
-	MUTED = Color3.fromRGB(145, 145, 145),
+------------------------------------------------------------------------
+-- THEME
+------------------------------------------------------------------------
+local T = {
+	BG     = Color3.fromRGB(8,   8,   8),
+	PANEL  = Color3.fromRGB(16,  16,  16),
+	BUTTON = Color3.fromRGB(25,  25,  25),
+	HOVER  = Color3.fromRGB(36,  36,  36),
+	BORDER = Color3.fromRGB(50,  50,  50),
+	WHITE  = Color3.fromRGB(255, 255, 255),
+	MUTED  = Color3.fromRGB(145, 145, 145),
+	ON     = Color3.fromRGB(40,  175, 75),
+	OFF    = Color3.fromRGB(175, 45,  45),
 }
 
-local bgTransparency = 0.05
-local launcherEnabled = true
-local opened = false
-local busy = false
+------------------------------------------------------------------------
+-- STATE
+------------------------------------------------------------------------
+local bgOpacity    = 0.95   -- fraction opaque (0–1); transparency = 1 - bgOpacity
+local opened       = false
+local busy         = false
 local sessionStart = os.clock()
 
-local function round(obj, px)
+------------------------------------------------------------------------
+-- HELPERS
+------------------------------------------------------------------------
+local function corner(obj, px)
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, px)
 	c.Parent = obj
 end
 
-local function stroke(obj)
+local function outline(obj)
 	local s = Instance.new("UIStroke")
-	s.Color = THEME.BORDER
-	s.Thickness = 1
+	s.Color       = T.BORDER
+	s.Thickness   = 1
 	s.Transparency = 0.25
-	s.Parent = obj
+	s.Parent      = obj
 end
 
-local function text(parent, value, size, font)
+local function mkLabel(parent, str, sz, font)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
-	t.Text = value
-	t.TextColor3 = THEME.WHITE
-	t.TextSize = size
-	t.Font = font or Enum.Font.GothamBold
-	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.Parent = parent
+	t.Text              = str
+	t.TextColor3        = T.WHITE
+	t.TextSize          = sz
+	t.Font              = font or Enum.Font.GothamBold
+	t.TextXAlignment    = Enum.TextXAlignment.Left
+	t.TextYAlignment    = Enum.TextYAlignment.Center
+	t.Parent            = parent
 	return t
 end
 
-local function button(parent, value)
+local function mkButton(parent, str)
 	local b = Instance.new("TextButton")
-	b.BackgroundColor3 = THEME.BUTTON
-	b.BorderSizePixel = 0
-	b.Text = value
-	b.TextColor3 = THEME.WHITE
-	b.TextSize = 12
-	b.Font = Enum.Font.GothamBold
-	b.AutoButtonColor = false
-	b.Parent = parent
-	round(b, 8)
-	stroke(b)
-
+	b.BackgroundColor3   = T.BUTTON
+	b.BorderSizePixel    = 0
+	b.Text               = str
+	b.TextColor3         = T.WHITE
+	b.TextSize           = 12
+	b.Font               = Enum.Font.GothamBold
+	b.AutoButtonColor    = false
+	b.TextXAlignment     = Enum.TextXAlignment.Center
+	b.Parent             = parent
+	corner(b, 8)
+	outline(b)
 	b.MouseEnter:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = THEME.HOVER}):Play()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.HOVER}):Play()
 	end)
-
 	b.MouseLeave:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = THEME.BUTTON}):Play()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.BUTTON}):Play()
 	end)
-
 	return b
 end
 
-local function click()
+local function playClick()
 	local s = Instance.new("Sound")
 	s.SoundId = "rbxassetid://12221967"
-	s.Volume = 1
-	s.Parent = SoundService
+	s.Volume  = 1
+	s.Parent  = SoundService
 	s:Play()
 	s.Ended:Connect(function() s:Destroy() end)
 end
 
-local function timeString(seconds)
-	seconds = math.floor(seconds)
-	local h = math.floor(seconds / 3600)
-	local m = math.floor((seconds % 3600) / 60)
-	local s = seconds % 60
-	if h > 0 then
-		return string.format("%02dh %02dm %02ds", h, m, s)
-	end
+local function fmtTime(secs)
+	secs = math.floor(secs)
+	local h = math.floor(secs / 3600)
+	local m = math.floor((secs % 3600) / 60)
+	local s = secs % 60
+	if h > 0 then return string.format("%02dh %02dm %02ds", h, m, s) end
 	return string.format("%02dm %02ds", m, s)
 end
 
--- Root
+------------------------------------------------------------------------
+-- ROOT GUI
+------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "YesHub"
-gui.ResetOnSpawn = false
+gui.Name          = "YesHub"
+gui.ResetOnSpawn  = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = playerGui
+gui.Parent        = playerGui
 
--- Launcher
+------------------------------------------------------------------------
+-- LAUNCHER BUTTON  (draggable, left-centre)
+------------------------------------------------------------------------
 local launcher = Instance.new("TextButton")
-launcher.Name = "YLauncher"
-launcher.Size = UDim2.fromOffset(46, 46)
-launcher.Position = UDim2.new(0, 18, .5, -23)
+launcher.Name             = "YLauncher"
+launcher.Size             = UDim2.fromOffset(46, 46)
+launcher.Position         = UDim2.new(0, 18, .5, -23)
 launcher.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
-launcher.BorderSizePixel = 0
-launcher.Text = "Y"
-launcher.TextColor3 = THEME.WHITE
-launcher.TextSize = 24
-launcher.Font = Enum.Font.GothamBlack
-launcher.AutoButtonColor = false
-launcher.ZIndex = 100
-launcher.Parent = gui
-round(launcher, 12)
-stroke(launcher)
+launcher.BorderSizePixel  = 0
+launcher.Text             = "Y"
+launcher.TextColor3       = T.WHITE
+launcher.TextSize         = 24
+launcher.Font             = Enum.Font.GothamBlack
+launcher.AutoButtonColor  = false
+launcher.ZIndex           = 100
+launcher.Parent           = gui
+corner(launcher, 12)
+outline(launcher)
 
--- Main window
+------------------------------------------------------------------------
+-- MAIN WINDOW
+------------------------------------------------------------------------
 local main = Instance.new("Frame")
-main.Name = "Main"
-main.AnchorPoint = Vector2.new(.5, .5)
-main.Position = UDim2.fromScale(.5, .5)
-main.Size = UDim2.fromOffset(720, 430)
-main.BackgroundColor3 = THEME.BG
-main.BackgroundTransparency = bgTransparency
-main.BorderSizePixel = 0
-main.Visible = false
-main.ClipsDescendants = true
-main.Parent = gui
-round(main, 14)
-stroke(main)
+main.Name                 = "Main"
+main.AnchorPoint          = Vector2.new(.5, .5)
+main.Position             = UDim2.fromScale(.5, .5)
+main.Size                 = UDim2.fromOffset(720, 430)
+main.BackgroundColor3     = T.BG
+main.BackgroundTransparency = 1 - bgOpacity
+main.BorderSizePixel      = 0
+main.Visible              = false
+main.ClipsDescendants     = true
+main.Parent               = gui
+corner(main, 14)
+outline(main)
 
--- Header avatar
-local avatar = Instance.new("ImageLabel")
-avatar.Size = UDim2.fromOffset(46, 46)
-avatar.Position = UDim2.fromOffset(18, 15)
-avatar.BackgroundColor3 = THEME.PANEL
-avatar.BorderSizePixel = 0
-avatar.Parent = main
-round(avatar, 12)
+------------------------------------------------------------------------
+-- HEADER  (height 73px, then a 1px divider)
+------------------------------------------------------------------------
+-- Avatar (top-left of header)
+local headerAvatar = Instance.new("ImageLabel")
+headerAvatar.Size             = UDim2.fromOffset(46, 46)
+headerAvatar.Position         = UDim2.fromOffset(18, 14)
+headerAvatar.BackgroundColor3 = T.PANEL
+headerAvatar.BorderSizePixel  = 0
+headerAvatar.Parent           = main
+corner(headerAvatar, 12)
 
-local title = text(main, "Yes-Hub", 20)
-title.Size = UDim2.fromOffset(250, 26)
-title.Position = UDim2.fromOffset(76, 13)
+-- Title + byline
+local lblTitle = mkLabel(main, "Yes-Hub", 20)
+lblTitle.Size     = UDim2.fromOffset(300, 26)
+lblTitle.Position = UDim2.fromOffset(76, 11)
 
-local author = text(main, "by yes.dev", 11)
-author.Size = UDim2.fromOffset(250, 18)
-author.Position = UDim2.fromOffset(77, 38)
-author.TextColor3 = THEME.MUTED
+local lblAuthor = mkLabel(main, "by yes.dev", 11)
+lblAuthor.Size      = UDim2.fromOffset(300, 18)
+lblAuthor.Position  = UDim2.fromOffset(77, 36)
+lblAuthor.TextColor3 = T.MUTED
 
-local display = text(main, player.DisplayName, 12)
-display.Size = UDim2.fromOffset(190, 20)
-display.Position = UDim2.new(1, -210, 0, 15)
-display.TextXAlignment = Enum.TextXAlignment.Right
+-- Player info (right side of header — display name + username only, no extra buttons)
+local lblDisplay = mkLabel(main, player.DisplayName, 12)
+lblDisplay.Size             = UDim2.fromOffset(200, 20)
+lblDisplay.Position         = UDim2.new(1, -218, 0, 13)
+lblDisplay.TextXAlignment   = Enum.TextXAlignment.Right
 
-local username = text(main, "@" .. player.Name, 10)
-username.Size = UDim2.fromOffset(190, 16)
-username.Position = UDim2.new(1, -210, 0, 38)
-username.TextXAlignment = Enum.TextXAlignment.Right
-username.TextColor3 = THEME.MUTED
+local lblUsername = mkLabel(main, "@" .. player.Name, 10)
+lblUsername.Size             = UDim2.fromOffset(200, 16)
+lblUsername.Position         = UDim2.new(1, -218, 0, 36)
+lblUsername.TextXAlignment   = Enum.TextXAlignment.Right
+lblUsername.TextColor3       = T.MUTED
 
+-- Divider
 local divider = Instance.new("Frame")
-divider.Size = UDim2.new(1, -36, 0, 1)
-divider.Position = UDim2.fromOffset(18, 73)
-divider.BackgroundColor3 = THEME.BORDER
+divider.Size                 = UDim2.new(1, -36, 0, 1)
+divider.Position             = UDim2.fromOffset(18, 73)
+divider.BackgroundColor3     = T.BORDER
 divider.BackgroundTransparency = .35
-divider.BorderSizePixel = 0
-divider.Parent = main
+divider.BorderSizePixel      = 0
+divider.Parent               = main
 
--- Settings button in header
-local headerSettings = button(main, "Settings")
-headerSettings.Size = UDim2.fromOffset(76, 28)
-headerSettings.Position = UDim2.new(1, -94, 0, 48)
-headerSettings.TextSize = 10
-headerSettings.TextXAlignment = Enum.TextXAlignment.Center
+------------------------------------------------------------------------
+-- LEFT SIDEBAR NAV  (below divider, 145px wide)
+------------------------------------------------------------------------
+local navLabel = mkLabel(main, "Navigation", 9)
+navLabel.Size      = UDim2.fromOffset(125, 16)
+navLabel.Position  = UDim2.fromOffset(20, 86)
+navLabel.TextColor3 = T.MUTED
 
--- Navigation sidebar labels
-local nav = text(main, "Features", 10)
-nav.Size = UDim2.fromOffset(125, 18)
-nav.Position = UDim2.fromOffset(20, 88)
-nav.TextColor3 = THEME.MUTED
+-- We'll define nav buttons and wire them after pages exist
+local NAV_X   = 18
+local NAV_W   = 125
+local NAV_H   = 34
+local NAV_GAP = 6
 
--- Nav buttons
-local ringNav = button(main, "Ring")
-ringNav.Size = UDim2.fromOffset(125, 36)
-ringNav.Position = UDim2.fromOffset(18, 113)
-ringNav.TextXAlignment = Enum.TextXAlignment.Center
-ringNav.BackgroundColor3 = THEME.HOVER
+local function mkNavBtn(label, yPos)
+	local b = mkButton(main, label)
+	b.Size     = UDim2.fromOffset(NAV_W, NAV_H)
+	b.Position = UDim2.fromOffset(NAV_X, yPos)
+	return b
+end
 
-local homeBtn = button(main, "Home")
-homeBtn.Size = UDim2.fromOffset(125, 36)
-homeBtn.Position = UDim2.fromOffset(18, 155)
-homeBtn.TextXAlignment = Enum.TextXAlignment.Center
+local btnHome     = mkNavBtn("Home",     107)
+local btnRing     = mkNavBtn("Ring",     107 + (NAV_H + NAV_GAP))
+local btnModules  = mkNavBtn("Modules",  107 + (NAV_H + NAV_GAP) * 2)
+local btnSettings = mkNavBtn("Settings", 107 + (NAV_H + NAV_GAP) * 3)
 
-local modulesBtn = button(main, "Modules")
-modulesBtn.Size = UDim2.fromOffset(125, 36)
-modulesBtn.Position = UDim2.fromOffset(18, 197)
-modulesBtn.TextXAlignment = Enum.TextXAlignment.Center
-
-local settingsBtn = button(main, "Settings")
-settingsBtn.Size = UDim2.fromOffset(125, 36)
-settingsBtn.Position = UDim2.fromOffset(18, 239)
-settingsBtn.TextXAlignment = Enum.TextXAlignment.Center
-
--- Page container
+------------------------------------------------------------------------
+-- PAGE CONTAINER  (right of sidebar)
+------------------------------------------------------------------------
 local pages = Instance.new("Frame")
-pages.Size = UDim2.new(1, -174, 1, -94)
-pages.Position = UDim2.fromOffset(163, 84)
+pages.Size                = UDim2.new(1, -163, 1, -84)
+pages.Position            = UDim2.fromOffset(153, 84)
 pages.BackgroundTransparency = 1
-pages.Parent = main
+pages.ClipsDescendants    = true
+pages.Parent              = main
 
--- HOME PAGE
-local home = Instance.new("Frame")
-home.Size = UDim2.fromScale(1, 1)
-home.BackgroundTransparency = 1
-home.Visible = true
-home.Parent = pages
+------------------------------------------------------------------------
+-- PAGE: HOME
+------------------------------------------------------------------------
+local pageHome = Instance.new("Frame")
+pageHome.Size                = UDim2.fromScale(1, 1)
+pageHome.BackgroundTransparency = 1
+pageHome.Visible             = true
+pageHome.Parent              = pages
 
-local welcome = text(home, "Welcome back, " .. player.DisplayName, 19)
-welcome.Size = UDim2.new(1, -10, 0, 28)
-welcome.Position = UDim2.fromOffset(4, 0)
+-- Page heading
+local homeTitleLbl = mkLabel(pageHome, "Welcome back, " .. player.DisplayName, 18)
+homeTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+homeTitleLbl.Position = UDim2.fromOffset(4, 6)
 
-local sub = text(home, "Your Yes-Hub dashboard", 11)
-sub.Size = UDim2.new(1, -10, 0, 18)
-sub.Position = UDim2.fromOffset(4, 29)
-sub.TextColor3 = THEME.MUTED
+local homeSubLbl = mkLabel(pageHome, "Your Yes-Hub dashboard", 10)
+homeSubLbl.Size      = UDim2.new(1, -8, 0, 16)
+homeSubLbl.Position  = UDim2.fromOffset(4, 32)
+homeSubLbl.TextColor3 = T.MUTED
 
+-- Player card  (full width, no right card bleeding off screen)
 local playerCard = Instance.new("Frame")
-playerCard.Size = UDim2.new(1, -158, 0, 125)
-playerCard.Position = UDim2.fromOffset(4, 56)
-playerCard.BackgroundColor3 = THEME.PANEL
+playerCard.Size                 = UDim2.new(1, -8, 0, 110)
+playerCard.Position             = UDim2.fromOffset(4, 54)
+playerCard.BackgroundColor3     = T.PANEL
 playerCard.BackgroundTransparency = .12
-playerCard.BorderSizePixel = 0
-playerCard.Parent = home
-round(playerCard, 10)
-stroke(playerCard)
+playerCard.BorderSizePixel      = 0
+playerCard.Parent               = pageHome
+corner(playerCard, 10)
+outline(playerCard)
 
-local homeAvatar = Instance.new("ImageLabel")
-homeAvatar.Size = UDim2.fromOffset(82, 82)
-homeAvatar.Position = UDim2.fromOffset(15, 21)
-homeAvatar.BackgroundColor3 = THEME.BUTTON
-homeAvatar.BorderSizePixel = 0
-homeAvatar.Parent = playerCard
-round(homeAvatar, 12)
+local homeAvatarImg = Instance.new("ImageLabel")
+homeAvatarImg.Size             = UDim2.fromOffset(72, 72)
+homeAvatarImg.Position         = UDim2.fromOffset(14, 19)
+homeAvatarImg.BackgroundColor3 = T.BUTTON
+homeAvatarImg.BorderSizePixel  = 0
+homeAvatarImg.Parent           = playerCard
+corner(homeAvatarImg, 10)
 
+local homeNameLbl = mkLabel(playerCard, player.DisplayName, 15)
+homeNameLbl.Size     = UDim2.new(1, -110, 0, 22)
+homeNameLbl.Position = UDim2.fromOffset(100, 18)
+
+local homeUserLbl = mkLabel(playerCard, "@" .. player.Name, 10)
+homeUserLbl.Size      = UDim2.new(1, -110, 0, 16)
+homeUserLbl.Position  = UDim2.fromOffset(100, 42)
+homeUserLbl.TextColor3 = T.MUTED
+
+local homeIdLbl = mkLabel(playerCard, "ID  •  " .. player.UserId, 10)
+homeIdLbl.Size      = UDim2.new(1, -110, 0, 16)
+homeIdLbl.Position  = UDim2.fromOffset(100, 62)
+homeIdLbl.TextColor3 = T.MUTED
+
+-- Playtime card  (below player card, left half)
+local playtimeCard = Instance.new("Frame")
+playtimeCard.Size                 = UDim2.new(.5, -6, 0, 64)
+playtimeCard.Position             = UDim2.fromOffset(4, 172)
+playtimeCard.BackgroundColor3     = T.PANEL
+playtimeCard.BackgroundTransparency = .12
+playtimeCard.BorderSizePixel      = 0
+playtimeCard.Parent               = pageHome
+corner(playtimeCard, 10)
+outline(playtimeCard)
+
+local playLabelLbl = mkLabel(playtimeCard, "PLAYTIME", 9)
+playLabelLbl.Size      = UDim2.new(1, -20, 0, 16)
+playLabelLbl.Position  = UDim2.fromOffset(10, 8)
+playLabelLbl.TextColor3 = T.MUTED
+
+local playValueLbl = mkLabel(playtimeCard, "00m 00s", 16)
+playValueLbl.Size     = UDim2.new(1, -20, 0, 24)
+playValueLbl.Position = UDim2.fromOffset(10, 28)
+
+-- Status card  (below player card, right half)
+local statusCard = Instance.new("Frame")
+statusCard.Size                 = UDim2.new(.5, -6, 0, 64)
+statusCard.Position             = UDim2.new(.5, 2, 0, 172)
+statusCard.BackgroundColor3     = T.PANEL
+statusCard.BackgroundTransparency = .12
+statusCard.BorderSizePixel      = 0
+statusCard.Parent               = pageHome
+corner(statusCard, 10)
+outline(statusCard)
+
+local statusDot = Instance.new("Frame")
+statusDot.Size             = UDim2.fromOffset(7, 7)
+statusDot.Position         = UDim2.fromOffset(12, 12)
+statusDot.BackgroundColor3 = T.ON
+statusDot.BorderSizePixel  = 0
+statusDot.Parent           = statusCard
+corner(statusDot, 8)
+
+local statusTitleLbl = mkLabel(statusCard, "Session Active", 11)
+statusTitleLbl.Size     = UDim2.new(1, -36, 0, 18)
+statusTitleLbl.Position = UDim2.fromOffset(26, 6)
+
+local statusTextLbl = mkLabel(statusCard, "Running normally.", 9)
+statusTextLbl.Size      = UDim2.new(1, -20, 0, 16)
+statusTextLbl.Position  = UDim2.fromOffset(10, 34)
+statusTextLbl.TextColor3 = T.MUTED
+
+-- Infinite Yield button
+local iyButton = mkButton(pageHome, "Infinite Yield")
+iyButton.Size     = UDim2.new(1, -8, 0, 36)
+iyButton.Position = UDim2.fromOffset(4, 244)
+iyButton.TextSize = 12
+
+iyButton.MouseButton1Click:Connect(function()
+	playClick()
+	statusTextLbl.Text = "Infinite Yield not configured."
+end)
+
+------------------------------------------------------------------------
+-- PAGE: RING
+------------------------------------------------------------------------
+local pageRing = Instance.new("Frame")
+pageRing.Size                = UDim2.fromScale(1, 1)
+pageRing.BackgroundTransparency = 1
+pageRing.Visible             = false
+pageRing.Parent              = pages
+
+local ringTitleLbl = mkLabel(pageRing, "Ring", 18)
+ringTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+ringTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local ringSubLbl = mkLabel(pageRing, "Super Ring V5", 10)
+ringSubLbl.Size      = UDim2.new(1, -8, 0, 16)
+ringSubLbl.Position  = UDim2.fromOffset(4, 32)
+ringSubLbl.TextColor3 = T.MUTED
+
+-- Ring card
+local ringCard = Instance.new("Frame")
+ringCard.Size                 = UDim2.new(1, -8, 0, 240)
+ringCard.Position             = UDim2.fromOffset(4, 54)
+ringCard.BackgroundColor3     = T.PANEL
+ringCard.BackgroundTransparency = .12
+ringCard.BorderSizePixel      = 0
+ringCard.Parent               = pageRing
+corner(ringCard, 10)
+outline(ringCard)
+
+local ringCardTitleLbl = mkLabel(ringCard, "Super Ring V5", 13)
+ringCardTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
+ringCardTitleLbl.Position = UDim2.fromOffset(12, 10)
+
+local ringCardSubLbl = mkLabel(ringCard, "Configure ring appearance and behaviour", 9)
+ringCardSubLbl.Size      = UDim2.new(1, -24, 0, 16)
+ringCardSubLbl.Position  = UDim2.fromOffset(12, 32)
+ringCardSubLbl.TextColor3 = T.MUTED
+
+-- Toggle factory (used twice)
+local function makeToggle(parent, label, yOff, initial)
+	local ROW_H = 40
+
+	local row = Instance.new("Frame")
+	row.Size             = UDim2.new(1, -24, 0, ROW_H)
+	row.Position         = UDim2.fromOffset(12, yOff)
+	row.BackgroundColor3 = T.BUTTON
+	row.BorderSizePixel  = 0
+	row.Parent           = parent
+	corner(row, 8)
+
+	local lbl = mkLabel(row, label, 11)
+	lbl.Size     = UDim2.new(1, -80, 1, 0)
+	lbl.Position = UDim2.fromOffset(12, 0)
+
+	local pill = Instance.new("TextButton")
+	pill.Size            = UDim2.fromOffset(46, 24)
+	pill.Position        = UDim2.new(1, -58, .5, -12)
+	pill.BackgroundColor3 = initial and T.ON or T.OFF
+	pill.BorderSizePixel = 0
+	pill.Text            = ""
+	pill.AutoButtonColor = false
+	pill.Parent          = row
+	corner(pill, 12)
+
+	local knob = Instance.new("Frame")
+	knob.Size             = UDim2.fromOffset(18, 18)
+	knob.Position         = initial and UDim2.new(1, -21, .5, -9) or UDim2.new(0, 3, .5, -9)
+	knob.BackgroundColor3 = T.WHITE
+	knob.BorderSizePixel  = 0
+	knob.Parent           = pill
+	corner(knob, 9)
+
+	local state = initial
+
+	pill.MouseButton1Click:Connect(function()
+		state = not state
+		TweenService:Create(pill, TweenInfo.new(.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			BackgroundColor3 = state and T.ON or T.OFF
+		}):Play()
+		TweenService:Create(knob, TweenInfo.new(.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = state and UDim2.new(1, -21, .5, -9) or UDim2.new(0, 3, .5, -9)
+		}):Play()
+		playClick()
+	end)
+
+	return { get = function() return state end }
+end
+
+local toggleRingEnabled = makeToggle(ringCard, "Ring Enabled", 56,  false)
+local toggleRingVisuals = makeToggle(ringCard, "Ring Visuals", 104, true)
+
+-- Ring Size row: label  |  [−]  [  50  ]  [+]
+local sizeRowY  = 152
+local sizeRowH  = 40
+
+local sizeRow = Instance.new("Frame")
+sizeRow.Size             = UDim2.new(1, -24, 0, sizeRowH)
+sizeRow.Position         = UDim2.fromOffset(12, sizeRowY)
+sizeRow.BackgroundColor3 = T.BUTTON
+sizeRow.BorderSizePixel  = 0
+sizeRow.Parent           = ringCard
+corner(sizeRow, 8)
+
+local sizeLbl = mkLabel(sizeRow, "Ring Size", 11)
+sizeLbl.Size     = UDim2.new(.4, 0, 1, 0)
+sizeLbl.Position = UDim2.fromOffset(12, 0)
+
+-- All three controls are right-aligned inside sizeRow
+-- Layout (right → left): [+28px] gap4 [box 52px] gap4 [−28px] margin12
+local BTN_W = 28
+local BOX_W = 52
+local MARGIN = 12
+local GAP    = 4
+
+local btnPlus = Instance.new("TextButton")
+btnPlus.Size             = UDim2.fromOffset(BTN_W, sizeRowH - 10)
+btnPlus.Position         = UDim2.new(1, -MARGIN - BTN_W, .5, -(sizeRowH - 10) / 2)
+btnPlus.BackgroundColor3 = T.HOVER
+btnPlus.BorderSizePixel  = 0
+btnPlus.Text             = "+"
+btnPlus.TextColor3       = T.WHITE
+btnPlus.TextSize         = 14
+btnPlus.Font             = Enum.Font.GothamBold
+btnPlus.AutoButtonColor  = false
+btnPlus.Parent           = sizeRow
+corner(btnPlus, 6)
+outline(btnPlus)
+
+local sizeBox = Instance.new("TextBox")
+sizeBox.Size             = UDim2.fromOffset(BOX_W, sizeRowH - 10)
+sizeBox.Position         = UDim2.new(1, -MARGIN - BTN_W - GAP - BOX_W, .5, -(sizeRowH - 10) / 2)
+sizeBox.BackgroundColor3 = T.BG
+sizeBox.BorderSizePixel  = 0
+sizeBox.Text             = "50"
+sizeBox.TextColor3       = T.WHITE
+sizeBox.TextSize         = 12
+sizeBox.Font             = Enum.Font.GothamBold
+sizeBox.TextXAlignment   = Enum.TextXAlignment.Center
+sizeBox.ClearTextOnFocus = false
+sizeBox.Parent           = sizeRow
+corner(sizeBox, 6)
+outline(sizeBox)
+
+local btnMinus = Instance.new("TextButton")
+btnMinus.Size             = UDim2.fromOffset(BTN_W, sizeRowH - 10)
+btnMinus.Position         = UDim2.new(1, -MARGIN - BTN_W - GAP - BOX_W - GAP - BTN_W, .5, -(sizeRowH - 10) / 2)
+btnMinus.BackgroundColor3 = T.HOVER
+btnMinus.BorderSizePixel  = 0
+btnMinus.Text             = "−"
+btnMinus.TextColor3       = T.WHITE
+btnMinus.TextSize         = 14
+btnMinus.Font             = Enum.Font.GothamBold
+btnMinus.AutoButtonColor  = false
+btnMinus.Parent           = sizeRow
+corner(btnMinus, 6)
+outline(btnMinus)
+
+local ringSize = 50
+
+local function applySize(v)
+	v = tonumber(v) or ringSize
+	v = math.clamp(math.floor(v + .5), 1, 500)
+	ringSize = v
+	sizeBox.Text = tostring(ringSize)
+end
+
+btnPlus.MouseButton1Click:Connect(function()  playClick() applySize(ringSize + 10) end)
+btnMinus.MouseButton1Click:Connect(function() playClick() applySize(ringSize - 10) end)
+sizeBox.FocusLost:Connect(function() applySize(sizeBox.Text) end)
+
+-- Hover tint for +/− (they're not using mkButton, so add manually)
+for _, b in ipairs({btnPlus, btnMinus}) do
+	b.MouseEnter:Connect(function()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.BORDER}):Play()
+	end)
+	b.MouseLeave:Connect(function()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.HOVER}):Play()
+	end)
+end
+
+local maxLbl = mkLabel(ringCard, "Max: 500", 9)
+maxLbl.Size      = UDim2.new(1, -24, 0, 16)
+maxLbl.Position  = UDim2.fromOffset(12, 200)
+maxLbl.TextColor3 = T.MUTED
+
+local ringStatusLbl = mkLabel(pageRing, "Ring is currently disabled.", 10)
+ringStatusLbl.Size      = UDim2.new(1, -8, 0, 16)
+ringStatusLbl.Position  = UDim2.fromOffset(4, 304)
+ringStatusLbl.TextColor3 = T.MUTED
+
+toggleRingEnabled.get() -- initial state wired below after showPage defined
+-- Status text updates when toggle fires
+local _origRingToggleFn
+-- Wire status update via re-connecting; the pill button is accessible through the toggle row
+do
+	-- Access the pill inside the first toggle row (Ring Enabled = row child index 1 in ringCard)
+	local ringEnabledRow = ringCard:GetChildren()
+	-- find the pill by iterating children of the row that is a TextButton
+	for _, child in ipairs(ringCard:GetChildren()) do
+		if child:IsA("Frame") and child.Position == UDim2.fromOffset(12, 56) then
+			for _, sub in ipairs(child:GetChildren()) do
+				if sub:IsA("TextButton") then
+					sub.MouseButton1Click:Connect(function()
+						task.defer(function()
+							ringStatusLbl.Text = toggleRingEnabled.get()
+								and "Ring is currently enabled."
+								or  "Ring is currently disabled."
+						end)
+					end)
+					break
+				end
+			end
+			break
+		end
+	end
+end
+
+------------------------------------------------------------------------
+-- PAGE: MODULES
+------------------------------------------------------------------------
+local pageModules = Instance.new("Frame")
+pageModules.Size                = UDim2.fromScale(1, 1)
+pageModules.BackgroundTransparency = 1
+pageModules.Visible             = false
+pageModules.Parent              = pages
+
+local modTitleLbl = mkLabel(pageModules, "Modules", 18)
+modTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+modTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local modSubLbl = mkLabel(pageModules, "Installed feature modules", 10)
+modSubLbl.Size      = UDim2.new(1, -8, 0, 16)
+modSubLbl.Position  = UDim2.fromOffset(4, 32)
+modSubLbl.TextColor3 = T.MUTED
+
+local modEmptyLbl = mkLabel(pageModules, "No modules installed.", 10)
+modEmptyLbl.Size      = UDim2.new(1, -8, 0, 16)
+modEmptyLbl.Position  = UDim2.fromOffset(4, 60)
+modEmptyLbl.TextColor3 = T.MUTED
+
+------------------------------------------------------------------------
+-- PAGE: SETTINGS
+------------------------------------------------------------------------
+local pageSettings = Instance.new("Frame")
+pageSettings.Size                = UDim2.fromScale(1, 1)
+pageSettings.BackgroundTransparency = 1
+pageSettings.Visible             = false
+pageSettings.Parent              = pages
+
+local settingsTitleLbl = mkLabel(pageSettings, "Settings", 18)
+settingsTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+settingsTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local settingsSubLbl = mkLabel(pageSettings, "Hub configuration", 10)
+settingsSubLbl.Size      = UDim2.new(1, -8, 0, 16)
+settingsSubLbl.Position  = UDim2.fromOffset(4, 32)
+settingsSubLbl.TextColor3 = T.MUTED
+
+-- Opacity row
+local opacityRow = Instance.new("Frame")
+opacityRow.Size             = UDim2.new(1, -8, 0, 56)
+opacityRow.Position         = UDim2.fromOffset(4, 58)
+opacityRow.BackgroundColor3 = T.PANEL
+opacityRow.BackgroundTransparency = .12
+opacityRow.BorderSizePixel  = 0
+opacityRow.Parent           = pageSettings
+corner(opacityRow, 8)
+outline(opacityRow)
+
+local opTitleLbl = mkLabel(opacityRow, "Background Opacity", 11)
+opTitleLbl.Size     = UDim2.fromOffset(180, 18)
+opTitleLbl.Position = UDim2.fromOffset(12, 8)
+
+local opValueLbl = mkLabel(opacityRow, "95%", 11)
+opValueLbl.Size           = UDim2.fromOffset(48, 18)
+opValueLbl.Position       = UDim2.new(1, -60, 0, 8)
+opValueLbl.TextXAlignment = Enum.TextXAlignment.Right
+
+local opTrack = Instance.new("Frame")
+opTrack.Size             = UDim2.new(1, -24, 0, 6)
+opTrack.Position         = UDim2.fromOffset(12, 36)
+opTrack.BackgroundColor3 = T.BORDER
+opTrack.BorderSizePixel  = 0
+opTrack.Active           = true
+opTrack.Parent           = opacityRow
+corner(opTrack, 6)
+
+local opFill = Instance.new("Frame")
+opFill.Size             = UDim2.fromScale(bgOpacity, 1)
+opFill.BackgroundColor3 = T.WHITE
+opFill.BorderSizePixel  = 0
+opFill.Parent           = opTrack
+corner(opFill, 6)
+
+local opKnob = Instance.new("Frame")
+opKnob.Size             = UDim2.fromOffset(14, 14)
+opKnob.AnchorPoint      = Vector2.new(.5, .5)
+opKnob.Position         = UDim2.new(bgOpacity, 0, .5, 0)
+opKnob.BackgroundColor3 = T.WHITE
+opKnob.BorderSizePixel  = 0
+opKnob.Active           = true
+opKnob.Parent           = opTrack
+corner(opKnob, 8)
+
+local opDragging = false
+
+local function setOpacity(x)
+	local left  = opTrack.AbsolutePosition.X
+	local width = opTrack.AbsoluteSize.X
+	local ratio = math.clamp((x - left) / width, 0, 1)
+	-- snap to 5% steps
+	ratio = math.floor(ratio * 20 + .5) / 20
+	bgOpacity = ratio
+	main.BackgroundTransparency = 1 - bgOpacity
+	opFill.Size = UDim2.fromScale(ratio, 1)
+	opKnob.Position = UDim2.new(ratio, 0, .5, 0)
+	opValueLbl.Text = tostring(math.floor(ratio * 100 + .5)) .. "%"
+end
+
+opTrack.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		opDragging = true
+		setOpacity(i.Position.X)
+	end
+end)
+opFill.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		opDragging = true
+		setOpacity(i.Position.X)
+	end
+end)
+opKnob.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		opDragging = true
+		setOpacity(i.Position.X)
+	end
+end)
+
+------------------------------------------------------------------------
+-- PAGE SWITCHER
+------------------------------------------------------------------------
+local PAGES = {
+	Home     = pageHome,
+	Ring     = pageRing,
+	Modules  = pageModules,
+	Settings = pageSettings,
+}
+local NAV_BTNS = {
+	Home     = btnHome,
+	Ring     = btnRing,
+	Modules  = btnModules,
+	Settings = btnSettings,
+}
+
+local function showPage(name)
+	for k, pg in pairs(PAGES)    do pg.Visible = (k == name) end
+	for k, nb in pairs(NAV_BTNS) do
+		-- bypass the hover tween — set directly
+		nb.BackgroundColor3 = (k == name) and T.HOVER or T.BUTTON
+	end
+end
+
+btnHome.MouseButton1Click:Connect(function()     playClick() showPage("Home") end)
+btnRing.MouseButton1Click:Connect(function()     playClick() showPage("Ring") end)
+btnModules.MouseButton1Click:Connect(function()  playClick() showPage("Modules") end)
+btnSettings.MouseButton1Click:Connect(function() playClick() showPage("Settings") end)
+
+showPage("Home")   -- default
+
+------------------------------------------------------------------------
+-- AVATAR ASYNC LOAD
+------------------------------------------------------------------------
 task.spawn(function()
-	local ok, image = pcall(function()
+	local ok, img = pcall(function()
 		return Players:GetUserThumbnailAsync(
 			player.UserId,
 			Enum.ThumbnailType.HeadShot,
@@ -261,491 +724,120 @@ task.spawn(function()
 		)
 	end)
 	if ok then
-		avatar.Image = image
-		homeAvatar.Image = image
+		headerAvatar.Image = img
+		homeAvatarImg.Image = img
 	end
 end)
 
-local homeName = text(playerCard, player.DisplayName, 17)
-homeName.Size = UDim2.fromOffset(250, 24)
-homeName.Position = UDim2.fromOffset(112, 18)
-
-local homeUser = text(playerCard, "@" .. player.Name, 10)
-homeUser.Size = UDim2.fromOffset(250, 18)
-homeUser.Position = UDim2.fromOffset(112, 44)
-homeUser.TextColor3 = THEME.MUTED
-
-local id = text(playerCard, "User ID  •  " .. player.UserId, 10)
-id.Size = UDim2.fromOffset(250, 18)
-id.Position = UDim2.fromOffset(112, 69)
-id.TextColor3 = THEME.MUTED
-
-local playCard = Instance.new("Frame")
-playCard.Size = UDim2.fromOffset(142, 125)
-playCard.Position = UDim2.new(1, -4, 0, 56)
-playCard.BackgroundColor3 = THEME.PANEL
-playCard.BackgroundTransparency = .12
-playCard.BorderSizePixel = 0
-playCard.Parent = home
-round(playCard, 10)
-stroke(playCard)
-
-local playLabel = text(playCard, "PLAYTIME", 9)
-playLabel.Size = UDim2.new(1, -20, 0, 18)
-playLabel.Position = UDim2.fromOffset(10, 15)
-playLabel.TextColor3 = THEME.MUTED
-
-local playValue = text(playCard, "00m 00s", 17)
-playValue.Size = UDim2.new(1, -20, 0, 28)
-playValue.Position = UDim2.fromOffset(10, 43)
-
-local playHint = text(playCard, "This session", 9)
-playHint.Size = UDim2.new(1, -20, 0, 18)
-playHint.Position = UDim2.fromOffset(10, 77)
-playHint.TextColor3 = THEME.MUTED
-
-local status = Instance.new("Frame")
-status.Size = UDim2.new(1, -8, 0, 70)
-status.Position = UDim2.fromOffset(4, 192)
-status.BackgroundColor3 = THEME.PANEL
-status.BackgroundTransparency = .12
-status.BorderSizePixel = 0
-status.Parent = home
-round(status, 10)
-stroke(status)
-
-local dot = Instance.new("Frame")
-dot.Size = UDim2.fromOffset(8, 8)
-dot.Position = UDim2.fromOffset(15, 18)
-dot.BackgroundColor3 = THEME.WHITE
-dot.BorderSizePixel = 0
-dot.Parent = status
-round(dot, 8)
-
-local statusTitle = text(status, "Session Active", 12)
-statusTitle.Size = UDim2.new(1, -42, 0, 20)
-statusTitle.Position = UDim2.fromOffset(30, 10)
-
-local statusText = text(status, "Yes-Hub is running normally.", 10)
-statusText.Size = UDim2.new(1, -42, 0, 18)
-statusText.Position = UDim2.fromOffset(30, 33)
-statusText.TextColor3 = THEME.MUTED
-
-local iyButton = button(home, "Infinite Yield")
-iyButton.Size = UDim2.new(1, -8, 0, 40)
-iyButton.Position = UDim2.fromOffset(4, 273)
-iyButton.TextXAlignment = Enum.TextXAlignment.Center
-
-iyButton.MouseButton1Click:Connect(function()
-	click()
-	statusText.Text = "Infinite Yield module is not configured."
-end)
-
--- MODULES PAGE
-local modules = Instance.new("Frame")
-modules.Size = UDim2.fromScale(1, 1)
-modules.BackgroundTransparency = 1
-modules.Visible = false
-modules.Parent = pages
-
-local modTitle = text(modules, "Modules", 19)
-modTitle.Size = UDim2.new(1, -10, 0, 28)
-modTitle.Position = UDim2.fromOffset(4, 0)
-
-local modSub = text(modules, "Installed feature modules", 11)
-modSub.Size = UDim2.new(1, -10, 0, 18)
-modSub.Position = UDim2.fromOffset(4, 29)
-modSub.TextColor3 = THEME.MUTED
-
-local modEmpty = text(modules, "No modules installed.", 11)
-modEmpty.Size = UDim2.new(1, -10, 0, 18)
-modEmpty.Position = UDim2.fromOffset(4, 60)
-modEmpty.TextColor3 = THEME.MUTED
-
--- SETTINGS PAGE
-local settings = Instance.new("Frame")
-settings.Size = UDim2.fromScale(1, 1)
-settings.BackgroundTransparency = 1
-settings.Visible = false
-settings.Parent = pages
-
-local settingsTitle = text(settings, "Settings", 19)
-settingsTitle.Size = UDim2.new(1, -10, 0, 28)
-settingsTitle.Position = UDim2.fromOffset(4, 0)
-
-local settingsSub = text(settings, "Hub configuration", 11)
-settingsSub.Size = UDim2.new(1, -10, 0, 18)
-settingsSub.Position = UDim2.fromOffset(4, 29)
-settingsSub.TextColor3 = THEME.MUTED
-
--- Opacity slider
-local opacityHolder = Instance.new("Frame")
-opacityHolder.Size = UDim2.new(1, -8, 0, 48)
-opacityHolder.Position = UDim2.fromOffset(4, 58)
-opacityHolder.BackgroundColor3 = THEME.BUTTON
-opacityHolder.BorderSizePixel = 0
-opacityHolder.Parent = settings
-round(opacityHolder, 8)
-stroke(opacityHolder)
-
-local opacityTitle = text(opacityHolder, "Background opacity", 11)
-opacityTitle.Size = UDim2.fromOffset(150, 20)
-opacityTitle.Position = UDim2.fromOffset(12, 6)
-
-local opacityValue = text(opacityHolder, "95%", 11)
-opacityValue.Size = UDim2.fromOffset(50, 20)
-opacityValue.Position = UDim2.new(1, -62, 0, 6)
-opacityValue.TextXAlignment = Enum.TextXAlignment.Right
-
-local track = Instance.new("Frame")
-track.Size = UDim2.new(1, -24, 0, 5)
-track.Position = UDim2.fromOffset(12, 34)
-track.BackgroundColor3 = THEME.BORDER
-track.BorderSizePixel = 0
-track.Active = true
-track.Parent = opacityHolder
-round(track, 5)
-
-local fill = Instance.new("Frame")
-fill.Size = UDim2.fromScale(.95, 1)
-fill.BackgroundColor3 = THEME.WHITE
-fill.BorderSizePixel = 0
-fill.Active = true
-fill.Parent = track
-round(fill, 5)
-
-local sliderKnob = Instance.new("Frame")
-sliderKnob.Size = UDim2.fromOffset(14, 14)
-sliderKnob.AnchorPoint = Vector2.new(.5, .5)
-sliderKnob.Position = UDim2.new(.95, 0, .5, 0)
-sliderKnob.BackgroundColor3 = THEME.WHITE
-sliderKnob.BorderSizePixel = 0
-sliderKnob.Active = true
-sliderKnob.Parent = track
-round(sliderKnob, 8)
-
-local opacityDragging = false
-
-local function setOpacityFromX(x)
-	local left = track.AbsolutePosition.X
-	local width = track.AbsoluteSize.X
-	local ratio = math.clamp((x - left) / width, 0, 1)
-	ratio = math.floor(ratio * 10 + .5) / 10
-	local percent = math.floor(ratio * 100 + .5)
-	bgTransparency = 1 - ratio
-	main.BackgroundTransparency = bgTransparency
-	fill.Size = UDim2.fromScale(ratio, 1)
-	sliderKnob.Position = UDim2.new(ratio, 0, .5, 0)
-	opacityValue.Text = tostring(percent) .. "%"
-end
-
-local function beginOpacityDrag(input)
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	opacityDragging = true
-	setOpacityFromX(input.Position.X)
-end
-
-track.InputBegan:Connect(beginOpacityDrag)
-fill.InputBegan:Connect(beginOpacityDrag)
-sliderKnob.InputBegan:Connect(beginOpacityDrag)
-
--- RING PAGE
-local ringPage = Instance.new("Frame")
-ringPage.Size = UDim2.fromScale(1, 1)
-ringPage.BackgroundTransparency = 1
-ringPage.Visible = false
-ringPage.Parent = pages
-
-local ringTitle = text(ringPage, "Ring", 19)
-ringTitle.Size = UDim2.new(1, -10, 0, 28)
-ringTitle.Position = UDim2.fromOffset(4, 0)
-
-local ringSub = text(ringPage, "Super Ring V5", 11)
-ringSub.Size = UDim2.new(1, -10, 0, 18)
-ringSub.Position = UDim2.fromOffset(4, 29)
-ringSub.TextColor3 = THEME.MUTED
-
-local ringCard = Instance.new("Frame")
-ringCard.Size = UDim2.new(1, -8, 0, 235)
-ringCard.Position = UDim2.fromOffset(4, 58)
-ringCard.BackgroundColor3 = THEME.PANEL
-ringCard.BackgroundTransparency = .12
-ringCard.BorderSizePixel = 0
-ringCard.Parent = ringPage
-round(ringCard, 10)
-stroke(ringCard)
-
-local ringCardTitle = text(ringCard, "Super Ring V5", 14)
-ringCardTitle.Size = UDim2.new(1, -24, 0, 24)
-ringCardTitle.Position = UDim2.fromOffset(12, 12)
-
-local ringCardSub = text(ringCard, "Clean controls", 10)
-ringCardSub.Size = UDim2.new(1, -24, 0, 18)
-ringCardSub.Position = UDim2.fromOffset(12, 37)
-ringCardSub.TextColor3 = THEME.MUTED
-
-local function makeRingToggle(parent, name, y, initial)
-	local row = Instance.new("Frame")
-	row.Size = UDim2.new(1, -24, 0, 42)
-	row.Position = UDim2.fromOffset(12, y)
-	row.BackgroundColor3 = THEME.BUTTON
-	row.BorderSizePixel = 0
-	row.Parent = parent
-	round(row, 8)
-
-	local lbl = text(row, name, 11)
-	lbl.Size = UDim2.new(1, -90, 1, 0)
-	lbl.Position = UDim2.fromOffset(12, 0)
-	lbl.TextYAlignment = Enum.TextYAlignment.Center
-
-	local toggle = Instance.new("TextButton")
-	toggle.Size = UDim2.fromOffset(48, 26)
-	toggle.Position = UDim2.new(1, -60, .5, -13)
-	toggle.BackgroundColor3 = initial and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
-	toggle.BorderSizePixel = 0
-	toggle.Text = ""
-	toggle.AutoButtonColor = false
-	toggle.Parent = row
-	round(toggle, 13)
-
-	local knob = Instance.new("Frame")
-	knob.Size = UDim2.fromOffset(20, 20)
-	knob.Position = initial and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
-	knob.BackgroundColor3 = THEME.WHITE
-	knob.BorderSizePixel = 0
-	knob.Parent = toggle
-	round(knob, 10)
-
-	local state = initial
-
-	toggle.MouseButton1Click:Connect(function()
-		state = not state
-		TweenService:Create(toggle, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			BackgroundColor3 = state and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
-		}):Play()
-		TweenService:Create(knob, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Position = state and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
-		}):Play()
-		click()
-	end)
-
-	return {
-		toggle = toggle,
-		get = function() return state end
-	}
-end
-
-local ringEnabled = makeRingToggle(ringCard, "Ring Enabled", 64, false)
-local ringVisuals = makeRingToggle(ringCard, "Ring Visuals", 112, true)
-
-local sizeLabel = text(ringCard, "Ring Size", 11)
-sizeLabel.Size = UDim2.fromOffset(100, 26)
-sizeLabel.Position = UDim2.fromOffset(12, 166)
-sizeLabel.TextYAlignment = Enum.TextYAlignment.Center
-
-local sizeBox = Instance.new("TextBox")
-sizeBox.Size = UDim2.fromOffset(70, 30)
-sizeBox.Position = UDim2.new(1, -138, 0, 164)
-sizeBox.BackgroundColor3 = THEME.BUTTON
-sizeBox.BorderSizePixel = 0
-sizeBox.Text = "50"
-sizeBox.TextColor3 = THEME.WHITE
-sizeBox.TextSize = 12
-sizeBox.Font = Enum.Font.GothamBold
-sizeBox.ClearTextOnFocus = false
-sizeBox.TextXAlignment = Enum.TextXAlignment.Center
-sizeBox.Parent = ringCard
-round(sizeBox, 8)
-stroke(sizeBox)
-
-local minus = button(ringCard, "−")
-minus.Size = UDim2.fromOffset(30, 30)
-minus.Position = UDim2.new(1, -100, 0, 164)
-minus.TextSize = 16
-
-local plus = button(ringCard, "+")
-plus.Size = UDim2.fromOffset(30, 30)
-plus.Position = UDim2.new(1, -28, 0, 164)
-plus.TextSize = 16
-
-local ringSize = 50
-
-local function applyRingSize(value)
-	value = tonumber(value) or ringSize
-	value = math.clamp(math.floor(value + 0.5), 1, 500)
-	ringSize = value
-	sizeBox.Text = tostring(ringSize)
-end
-
-minus.MouseButton1Click:Connect(function() applyRingSize(ringSize - 10) click() end)
-plus.MouseButton1Click:Connect(function() applyRingSize(ringSize + 10) click() end)
-sizeBox.FocusLost:Connect(function() applyRingSize(sizeBox.Text) end)
-
-local maxText = text(ringCard, "Max 500", 9)
-maxText.Size = UDim2.fromOffset(100, 18)
-maxText.Position = UDim2.fromOffset(12, 197)
-maxText.TextColor3 = THEME.MUTED
-
-local ringStatus = text(ringPage, "Ring is currently disabled", 10)
-ringStatus.Size = UDim2.new(1, -10, 0, 18)
-ringStatus.Position = UDim2.fromOffset(4, 305)
-ringStatus.TextColor3 = THEME.MUTED
-
-ringEnabled.toggle.MouseButton1Click:Connect(function()
-	ringStatus.Text = ringEnabled.get() and "Ring is currently enabled" or "Ring is currently disabled"
-end)
-
--- PAGE SWITCHER
-local function showPage(name)
-	home.Visible    = name == "Home"
-	modules.Visible = name == "Modules"
-	settings.Visible = name == "Settings"
-	ringPage.Visible = name == "Ring"
-
-	homeBtn.BackgroundColor3    = name == "Home"    and THEME.HOVER or THEME.BUTTON
-	modulesBtn.BackgroundColor3 = name == "Modules" and THEME.HOVER or THEME.BUTTON
-	settingsBtn.BackgroundColor3 = name == "Settings" and THEME.HOVER or THEME.BUTTON
-	ringNav.BackgroundColor3    = name == "Ring"    and THEME.HOVER or THEME.BUTTON
-end
-
-homeBtn.MouseButton1Click:Connect(function()    click() showPage("Home") end)
-modulesBtn.MouseButton1Click:Connect(function() click() showPage("Modules") end)
-settingsBtn.MouseButton1Click:Connect(function() click() showPage("Settings") end)
-ringNav.MouseButton1Click:Connect(function()    click() showPage("Ring") end)
-
-headerSettings.MouseButton1Click:Connect(function()
-	click()
-	showPage("Settings")
-end)
-
--- Start on Home
-showPage("Home")
-
--- Playtime ticker
+------------------------------------------------------------------------
+-- PLAYTIME TICKER
+------------------------------------------------------------------------
 task.spawn(function()
 	while gui.Parent do
-		playValue.Text = timeString(os.clock() - sessionStart)
+		playValueLbl.Text = fmtTime(os.clock() - sessionStart)
 		task.wait(1)
 	end
 end)
 
--- Drag logic — main window (header bar only)
-local DRAG_THRESHOLD = 6
+------------------------------------------------------------------------
+-- SINGLE InputChanged / InputEnded — handles both drag and opacity
+------------------------------------------------------------------------
+local DRAG_THRESH = 6
 
-local mainPressed = false
-local mainDragging = false
-local mainDragStart
-local mainStartPos
+-- Main window drag state
+local mainDown, mainDragging = false, false
+local mainDragOrigin, mainStartPos
 
-main.InputBegan:Connect(function(input)
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	local y = input.Position.Y - main.AbsolutePosition.Y
-	if y <= 74 then
-		mainPressed = true
-		mainDragging = false
-		mainDragStart = input.Position
-		mainStartPos = main.Position
+-- Launcher drag state
+local lDown, lDragging, lDidDrag = false, false, false
+local lDragOrigin, lStartPos
+
+main.InputBegan:Connect(function(i)
+	if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	local relY = i.Position.Y - main.AbsolutePosition.Y
+	if relY <= 73 then
+		mainDown        = true
+		mainDragging    = false
+		mainDragOrigin  = i.Position
+		mainStartPos    = main.Position
 	end
 end)
 
--- Drag logic — launcher button
-local launcherPressed = false
-local launcherDragging = false
-local launcherDidDrag = false
-local launcherDragStart
-local launcherStartPos
-
-launcher.InputBegan:Connect(function(input)
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	launcherPressed = true
-	launcherDragging = false
-	launcherDidDrag = false
-	launcherDragStart = input.Position
-	launcherStartPos = launcher.Position
+launcher.InputBegan:Connect(function(i)
+	if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	lDown       = true
+	lDragging   = false
+	lDidDrag    = false
+	lDragOrigin = i.Position
+	lStartPos   = launcher.Position
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-	if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+UserInputService.InputChanged:Connect(function(i)
+	if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 
-	if mainPressed then
-		local delta = input.Position - mainDragStart
-		if not mainDragging and delta.Magnitude >= DRAG_THRESHOLD then
-			mainDragging = true
-		end
+	-- opacity slider
+	if opDragging then setOpacity(i.Position.X) end
+
+	-- main drag
+	if mainDown then
+		local d = i.Position - mainDragOrigin
+		if not mainDragging and d.Magnitude >= DRAG_THRESH then mainDragging = true end
 		if mainDragging then
 			main.Position = UDim2.new(
-				mainStartPos.X.Scale,
-				mainStartPos.X.Offset + delta.X,
-				mainStartPos.Y.Scale,
-				mainStartPos.Y.Offset + delta.Y
+				mainStartPos.X.Scale,  mainStartPos.X.Offset + d.X,
+				mainStartPos.Y.Scale,  mainStartPos.Y.Offset + d.Y
 			)
 		end
 	end
 
-	if launcherPressed then
-		local delta = input.Position - launcherDragStart
-		if not launcherDragging and delta.Magnitude >= DRAG_THRESHOLD then
-			launcherDragging = true
-			launcherDidDrag = true
+	-- launcher drag
+	if lDown then
+		local d = i.Position - lDragOrigin
+		if not lDragging and d.Magnitude >= DRAG_THRESH then
+			lDragging = true
+			lDidDrag  = true
 		end
-		if launcherDragging then
+		if lDragging then
 			launcher.Position = UDim2.new(
-				launcherStartPos.X.Scale,
-				launcherStartPos.X.Offset + delta.X,
-				launcherStartPos.Y.Scale,
-				launcherStartPos.Y.Offset + delta.Y
+				lStartPos.X.Scale,  lStartPos.X.Offset + d.X,
+				lStartPos.Y.Scale,  lStartPos.Y.Offset + d.Y
 			)
 		end
 	end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		mainPressed = false
-		mainDragging = false
-		launcherPressed = false
-		launcherDragging = false
-	end
+UserInputService.InputEnded:Connect(function(i)
+	if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	mainDown    = false
+	mainDragging = false
+	lDown       = false
+	lDragging   = false
+	opDragging  = false
 end)
 
--- Opacity slider global drag
-UserInputService.InputChanged:Connect(function(input)
-	if opacityDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		setOpacityFromX(input.Position.X)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		opacityDragging = false
-	end
-end)
-
--- Open / close toggle
+------------------------------------------------------------------------
+-- OPEN / CLOSE TOGGLE
+------------------------------------------------------------------------
 local function toggle()
 	if busy then return end
-	busy = true
+	busy   = true
 	opened = not opened
-	click()
+	playClick()
 
 	if opened then
 		main.Visible = true
-		main.Size = UDim2.fromOffset(0, 0)
-		local tween = TweenService:Create(
-			main,
-			TweenInfo.new(.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		main.Size    = UDim2.fromOffset(0, 0)
+		local tw = TweenService:Create(main,
+			TweenInfo.new(.26, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 			{Size = UDim2.fromOffset(720, 430)}
 		)
-		tween:Play()
-		tween.Completed:Wait()
+		tw:Play(); tw.Completed:Wait()
 	else
-		local tween = TweenService:Create(
-			main,
-			TweenInfo.new(.20, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+		local tw = TweenService:Create(main,
+			TweenInfo.new(.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
 			{Size = UDim2.fromOffset(0, 0)}
 		)
-		tween:Play()
-		tween.Completed:Wait()
+		tw:Play(); tw.Completed:Wait()
 		main.Visible = false
 	end
 
@@ -753,19 +845,15 @@ local function toggle()
 end
 
 launcher.MouseButton1Click:Connect(function()
-	if launcherDidDrag then
-		launcherDidDrag = false
-		return
-	end
+	if lDidDrag then lDidDrag = false return end
 	toggle()
 end)
 
-UserInputService.InputBegan:Connect(function(input, processed)
+UserInputService.InputBegan:Connect(function(i, processed)
 	if processed then return end
-	if input.KeyCode == Enum.KeyCode.LeftControl then
-		toggle()
-	end
+	if i.KeyCode == Enum.KeyCode.LeftControl then toggle() end
 end)
 
-launcher.Visible = launcherEnabled
-main.Visible = false
+-- Initial state
+main.Visible    = false
+launcher.Visible = true
