@@ -1,9 +1,10 @@
 --========================================================
 -- YES-HUB | by yes.dev
--- COMPLETE SINGLE-FILE UI — CLEAN REWRITE
+-- COMPLETE SINGLE-FILE UI
 --========================================================
 
 local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService     = game:GetService("SoundService")
@@ -11,7 +12,6 @@ local SoundService     = game:GetService("SoundService")
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Destroy any previous instance
 local old = playerGui:FindFirstChild("YesHub")
 if old then old:Destroy() end
 
@@ -33,10 +33,11 @@ local T = {
 ------------------------------------------------------------------------
 -- STATE
 ------------------------------------------------------------------------
-local bgOpacity    = 0.95   -- fraction opaque (0–1); transparency = 1 - bgOpacity
+local bgOpacity    = 0.95
 local opened       = false
 local busy         = false
 local sessionStart = os.clock()
+local menuVisible  = true   -- launcher visibility
 
 ------------------------------------------------------------------------
 -- HELPERS
@@ -49,36 +50,36 @@ end
 
 local function outline(obj)
 	local s = Instance.new("UIStroke")
-	s.Color       = T.BORDER
-	s.Thickness   = 1
+	s.Color        = T.BORDER
+	s.Thickness    = 1
 	s.Transparency = 0.25
-	s.Parent      = obj
+	s.Parent       = obj
 end
 
 local function mkLabel(parent, str, sz, font)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
-	t.Text              = str
-	t.TextColor3        = T.WHITE
-	t.TextSize          = sz
-	t.Font              = font or Enum.Font.GothamBold
-	t.TextXAlignment    = Enum.TextXAlignment.Left
-	t.TextYAlignment    = Enum.TextYAlignment.Center
-	t.Parent            = parent
+	t.Text           = str
+	t.TextColor3     = T.WHITE
+	t.TextSize       = sz
+	t.Font           = font or Enum.Font.GothamBold
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Center
+	t.Parent         = parent
 	return t
 end
 
 local function mkButton(parent, str)
 	local b = Instance.new("TextButton")
-	b.BackgroundColor3   = T.BUTTON
-	b.BorderSizePixel    = 0
-	b.Text               = str
-	b.TextColor3         = T.WHITE
-	b.TextSize           = 12
-	b.Font               = Enum.Font.GothamBold
-	b.AutoButtonColor    = false
-	b.TextXAlignment     = Enum.TextXAlignment.Center
-	b.Parent             = parent
+	b.BackgroundColor3  = T.BUTTON
+	b.BorderSizePixel   = 0
+	b.Text              = str
+	b.TextColor3        = T.WHITE
+	b.TextSize          = 12
+	b.Font              = Enum.Font.GothamBold
+	b.AutoButtonColor   = false
+	b.TextXAlignment    = Enum.TextXAlignment.Center
+	b.Parent            = parent
 	corner(b, 8)
 	outline(b)
 	b.MouseEnter:Connect(function()
@@ -102,292 +103,26 @@ end
 local function fmtTime(secs)
 	secs = math.floor(secs)
 	local h = math.floor(secs / 3600)
-	local m = math.floor((secs % 3600) / 60)
-	local s = secs % 60
-	if h > 0 then return string.format("%02dh %02dm %02ds", h, m, s) end
-	return string.format("%02dm %02ds", m, s)
+	local m = math.floor((secs % 3600) % 60 / 60)  -- kept simple
+	local s2= secs % 60
+	m = math.floor((secs % 3600) / 60)
+	if h > 0 then return string.format("%02dh %02dm %02ds", h, m, s2) end
+	return string.format("%02dm %02ds", m, s2)
 end
 
 ------------------------------------------------------------------------
--- ROOT GUI
+-- SHARED ROW FACTORIES
+-- makeToggle  → returns { get() }
+-- makeNumRow  → returns { get(), set(v) }
+-- Both accept (parent, label, yOff, ...) and build inside parent.
 ------------------------------------------------------------------------
-local gui = Instance.new("ScreenGui")
-gui.Name          = "YesHub"
-gui.ResetOnSpawn  = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent        = playerGui
+local ROW_H   = 40
+local ROW_PAD = 12   -- left/right inset inside the card
 
-------------------------------------------------------------------------
--- LAUNCHER BUTTON  (draggable, left-centre)
-------------------------------------------------------------------------
-local launcher = Instance.new("TextButton")
-launcher.Name             = "YLauncher"
-launcher.Size             = UDim2.fromOffset(46, 46)
-launcher.Position         = UDim2.new(0, 18, .5, -23)
-launcher.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
-launcher.BorderSizePixel  = 0
-launcher.Text             = "Y"
-launcher.TextColor3       = T.WHITE
-launcher.TextSize         = 24
-launcher.Font             = Enum.Font.GothamBlack
-launcher.AutoButtonColor  = false
-launcher.ZIndex           = 100
-launcher.Parent           = gui
-corner(launcher, 12)
-outline(launcher)
-
-------------------------------------------------------------------------
--- MAIN WINDOW
-------------------------------------------------------------------------
-local main = Instance.new("Frame")
-main.Name                 = "Main"
-main.AnchorPoint          = Vector2.new(.5, .5)
-main.Position             = UDim2.fromScale(.5, .5)
-main.Size                 = UDim2.fromOffset(720, 430)
-main.BackgroundColor3     = T.BG
-main.BackgroundTransparency = 1 - bgOpacity
-main.BorderSizePixel      = 0
-main.Visible              = false
-main.ClipsDescendants     = true
-main.Parent               = gui
-corner(main, 14)
-outline(main)
-
-------------------------------------------------------------------------
--- HEADER  (height 73px, then a 1px divider)
-------------------------------------------------------------------------
--- Avatar (top-left of header)
-local headerAvatar = Instance.new("ImageLabel")
-headerAvatar.Size             = UDim2.fromOffset(46, 46)
-headerAvatar.Position         = UDim2.fromOffset(18, 14)
-headerAvatar.BackgroundColor3 = T.PANEL
-headerAvatar.BorderSizePixel  = 0
-headerAvatar.Parent           = main
-corner(headerAvatar, 12)
-
--- Title + byline
-local lblTitle = mkLabel(main, "Yes-Hub", 20)
-lblTitle.Size     = UDim2.fromOffset(300, 26)
-lblTitle.Position = UDim2.fromOffset(76, 11)
-
-local lblAuthor = mkLabel(main, "by yes.dev", 11)
-lblAuthor.Size      = UDim2.fromOffset(300, 18)
-lblAuthor.Position  = UDim2.fromOffset(77, 36)
-lblAuthor.TextColor3 = T.MUTED
-
--- Player info (right side of header — display name + username only, no extra buttons)
-local lblDisplay = mkLabel(main, player.DisplayName, 12)
-lblDisplay.Size             = UDim2.fromOffset(200, 20)
-lblDisplay.Position         = UDim2.new(1, -218, 0, 13)
-lblDisplay.TextXAlignment   = Enum.TextXAlignment.Right
-
-local lblUsername = mkLabel(main, "@" .. player.Name, 10)
-lblUsername.Size             = UDim2.fromOffset(200, 16)
-lblUsername.Position         = UDim2.new(1, -218, 0, 36)
-lblUsername.TextXAlignment   = Enum.TextXAlignment.Right
-lblUsername.TextColor3       = T.MUTED
-
--- Divider
-local divider = Instance.new("Frame")
-divider.Size                 = UDim2.new(1, -36, 0, 1)
-divider.Position             = UDim2.fromOffset(18, 73)
-divider.BackgroundColor3     = T.BORDER
-divider.BackgroundTransparency = .35
-divider.BorderSizePixel      = 0
-divider.Parent               = main
-
-------------------------------------------------------------------------
--- LEFT SIDEBAR NAV  (below divider, 145px wide)
-------------------------------------------------------------------------
-local navLabel = mkLabel(main, "Navigation", 9)
-navLabel.Size      = UDim2.fromOffset(125, 16)
-navLabel.Position  = UDim2.fromOffset(20, 86)
-navLabel.TextColor3 = T.MUTED
-
--- We'll define nav buttons and wire them after pages exist
-local NAV_X   = 18
-local NAV_W   = 125
-local NAV_H   = 34
-local NAV_GAP = 6
-
-local function mkNavBtn(label, yPos)
-	local b = mkButton(main, label)
-	b.Size     = UDim2.fromOffset(NAV_W, NAV_H)
-	b.Position = UDim2.fromOffset(NAV_X, yPos)
-	return b
-end
-
-local btnHome     = mkNavBtn("Home",     107)
-local btnRing     = mkNavBtn("Ring",     107 + (NAV_H + NAV_GAP))
-local btnModules  = mkNavBtn("Modules",  107 + (NAV_H + NAV_GAP) * 2)
-local btnSettings = mkNavBtn("Settings", 107 + (NAV_H + NAV_GAP) * 3)
-
-------------------------------------------------------------------------
--- PAGE CONTAINER  (right of sidebar)
-------------------------------------------------------------------------
-local pages = Instance.new("Frame")
-pages.Size                = UDim2.new(1, -163, 1, -84)
-pages.Position            = UDim2.fromOffset(153, 84)
-pages.BackgroundTransparency = 1
-pages.ClipsDescendants    = true
-pages.Parent              = main
-
-------------------------------------------------------------------------
--- PAGE: HOME
-------------------------------------------------------------------------
-local pageHome = Instance.new("Frame")
-pageHome.Size                = UDim2.fromScale(1, 1)
-pageHome.BackgroundTransparency = 1
-pageHome.Visible             = true
-pageHome.Parent              = pages
-
--- Page heading
-local homeTitleLbl = mkLabel(pageHome, "Welcome back, " .. player.DisplayName, 18)
-homeTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
-homeTitleLbl.Position = UDim2.fromOffset(4, 6)
-
-local homeSubLbl = mkLabel(pageHome, "Your Yes-Hub dashboard", 10)
-homeSubLbl.Size      = UDim2.new(1, -8, 0, 16)
-homeSubLbl.Position  = UDim2.fromOffset(4, 32)
-homeSubLbl.TextColor3 = T.MUTED
-
--- Player card  (full width, no right card bleeding off screen)
-local playerCard = Instance.new("Frame")
-playerCard.Size                 = UDim2.new(1, -8, 0, 110)
-playerCard.Position             = UDim2.fromOffset(4, 54)
-playerCard.BackgroundColor3     = T.PANEL
-playerCard.BackgroundTransparency = .12
-playerCard.BorderSizePixel      = 0
-playerCard.Parent               = pageHome
-corner(playerCard, 10)
-outline(playerCard)
-
-local homeAvatarImg = Instance.new("ImageLabel")
-homeAvatarImg.Size             = UDim2.fromOffset(72, 72)
-homeAvatarImg.Position         = UDim2.fromOffset(14, 19)
-homeAvatarImg.BackgroundColor3 = T.BUTTON
-homeAvatarImg.BorderSizePixel  = 0
-homeAvatarImg.Parent           = playerCard
-corner(homeAvatarImg, 10)
-
-local homeNameLbl = mkLabel(playerCard, player.DisplayName, 15)
-homeNameLbl.Size     = UDim2.new(1, -110, 0, 22)
-homeNameLbl.Position = UDim2.fromOffset(100, 18)
-
-local homeUserLbl = mkLabel(playerCard, "@" .. player.Name, 10)
-homeUserLbl.Size      = UDim2.new(1, -110, 0, 16)
-homeUserLbl.Position  = UDim2.fromOffset(100, 42)
-homeUserLbl.TextColor3 = T.MUTED
-
-local homeIdLbl = mkLabel(playerCard, "ID  •  " .. player.UserId, 10)
-homeIdLbl.Size      = UDim2.new(1, -110, 0, 16)
-homeIdLbl.Position  = UDim2.fromOffset(100, 62)
-homeIdLbl.TextColor3 = T.MUTED
-
--- Playtime card  (below player card, left half)
-local playtimeCard = Instance.new("Frame")
-playtimeCard.Size                 = UDim2.new(.5, -6, 0, 64)
-playtimeCard.Position             = UDim2.fromOffset(4, 172)
-playtimeCard.BackgroundColor3     = T.PANEL
-playtimeCard.BackgroundTransparency = .12
-playtimeCard.BorderSizePixel      = 0
-playtimeCard.Parent               = pageHome
-corner(playtimeCard, 10)
-outline(playtimeCard)
-
-local playLabelLbl = mkLabel(playtimeCard, "PLAYTIME", 9)
-playLabelLbl.Size      = UDim2.new(1, -20, 0, 16)
-playLabelLbl.Position  = UDim2.fromOffset(10, 8)
-playLabelLbl.TextColor3 = T.MUTED
-
-local playValueLbl = mkLabel(playtimeCard, "00m 00s", 16)
-playValueLbl.Size     = UDim2.new(1, -20, 0, 24)
-playValueLbl.Position = UDim2.fromOffset(10, 28)
-
--- Status card  (below player card, right half)
-local statusCard = Instance.new("Frame")
-statusCard.Size                 = UDim2.new(.5, -6, 0, 64)
-statusCard.Position             = UDim2.new(.5, 2, 0, 172)
-statusCard.BackgroundColor3     = T.PANEL
-statusCard.BackgroundTransparency = .12
-statusCard.BorderSizePixel      = 0
-statusCard.Parent               = pageHome
-corner(statusCard, 10)
-outline(statusCard)
-
-local statusDot = Instance.new("Frame")
-statusDot.Size             = UDim2.fromOffset(7, 7)
-statusDot.Position         = UDim2.fromOffset(12, 12)
-statusDot.BackgroundColor3 = T.ON
-statusDot.BorderSizePixel  = 0
-statusDot.Parent           = statusCard
-corner(statusDot, 8)
-
-local statusTitleLbl = mkLabel(statusCard, "Session Active", 11)
-statusTitleLbl.Size     = UDim2.new(1, -36, 0, 18)
-statusTitleLbl.Position = UDim2.fromOffset(26, 6)
-
-local statusTextLbl = mkLabel(statusCard, "Running normally.", 9)
-statusTextLbl.Size      = UDim2.new(1, -20, 0, 16)
-statusTextLbl.Position  = UDim2.fromOffset(10, 34)
-statusTextLbl.TextColor3 = T.MUTED
-
--- Infinite Yield button
-local iyButton = mkButton(pageHome, "Infinite Yield")
-iyButton.Size     = UDim2.new(1, -8, 0, 36)
-iyButton.Position = UDim2.fromOffset(4, 244)
-iyButton.TextSize = 12
-
-iyButton.MouseButton1Click:Connect(function()
-	playClick()
-	statusTextLbl.Text = "Infinite Yield not configured."
-end)
-
-------------------------------------------------------------------------
--- PAGE: RING
-------------------------------------------------------------------------
-local pageRing = Instance.new("Frame")
-pageRing.Size                = UDim2.fromScale(1, 1)
-pageRing.BackgroundTransparency = 1
-pageRing.Visible             = false
-pageRing.Parent              = pages
-
-local ringTitleLbl = mkLabel(pageRing, "Ring", 18)
-ringTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
-ringTitleLbl.Position = UDim2.fromOffset(4, 6)
-
-local ringSubLbl = mkLabel(pageRing, "Super Ring V5", 10)
-ringSubLbl.Size      = UDim2.new(1, -8, 0, 16)
-ringSubLbl.Position  = UDim2.fromOffset(4, 32)
-ringSubLbl.TextColor3 = T.MUTED
-
--- Ring card
-local ringCard = Instance.new("Frame")
-ringCard.Size                 = UDim2.new(1, -8, 0, 240)
-ringCard.Position             = UDim2.fromOffset(4, 54)
-ringCard.BackgroundColor3     = T.PANEL
-ringCard.BackgroundTransparency = .12
-ringCard.BorderSizePixel      = 0
-ringCard.Parent               = pageRing
-corner(ringCard, 10)
-outline(ringCard)
-
-local ringCardTitleLbl = mkLabel(ringCard, "Super Ring V5", 13)
-ringCardTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
-ringCardTitleLbl.Position = UDim2.fromOffset(12, 10)
-
-local ringCardSubLbl = mkLabel(ringCard, "Configure ring appearance and behaviour", 9)
-ringCardSubLbl.Size      = UDim2.new(1, -24, 0, 16)
-ringCardSubLbl.Position  = UDim2.fromOffset(12, 32)
-ringCardSubLbl.TextColor3 = T.MUTED
-
--- Toggle factory (used twice)
-local function makeToggle(parent, label, yOff, initial)
-	local ROW_H = 40
-
+local function makeToggle(parent, label, yOff, initial, onChange)
 	local row = Instance.new("Frame")
-	row.Size             = UDim2.new(1, -24, 0, ROW_H)
-	row.Position         = UDim2.fromOffset(12, yOff)
+	row.Size             = UDim2.new(1, -ROW_PAD * 2, 0, ROW_H)
+	row.Position         = UDim2.fromOffset(ROW_PAD, yOff)
 	row.BackgroundColor3 = T.BUTTON
 	row.BorderSizePixel  = 0
 	row.Parent           = parent
@@ -398,13 +133,13 @@ local function makeToggle(parent, label, yOff, initial)
 	lbl.Position = UDim2.fromOffset(12, 0)
 
 	local pill = Instance.new("TextButton")
-	pill.Size            = UDim2.fromOffset(46, 24)
-	pill.Position        = UDim2.new(1, -58, .5, -12)
+	pill.Size             = UDim2.fromOffset(46, 24)
+	pill.Position         = UDim2.new(1, -58, .5, -12)
 	pill.BackgroundColor3 = initial and T.ON or T.OFF
-	pill.BorderSizePixel = 0
-	pill.Text            = ""
-	pill.AutoButtonColor = false
-	pill.Parent          = row
+	pill.BorderSizePixel  = 0
+	pill.Text             = ""
+	pill.AutoButtonColor  = false
+	pill.Parent           = row
 	corner(pill, 12)
 
 	local knob = Instance.new("Frame")
@@ -426,199 +161,708 @@ local function makeToggle(parent, label, yOff, initial)
 			Position = state and UDim2.new(1, -21, .5, -9) or UDim2.new(0, 3, .5, -9)
 		}):Play()
 		playClick()
+		if onChange then onChange(state) end
 	end)
 
 	return { get = function() return state end }
 end
 
-local toggleRingEnabled = makeToggle(ringCard, "Ring Enabled", 56,  false)
-local toggleRingVisuals = makeToggle(ringCard, "Ring Visuals", 104, true)
+-- makeNumRow: a row with label on left, [−] [box] [+] on right
+-- params: parent, label, yOff, default, min, max, step
+-- returns { get(), set(v) }
+local NUM_BTN_W = 28
+local NUM_BOX_W = 52
+local NUM_GAP   = 4
+local NUM_MAR   = 12
 
--- Ring Size row: label  |  [−]  [  50  ]  [+]
-local sizeRowY  = 152
-local sizeRowH  = 40
+local function makeNumRow(parent, label, yOff, default, minVal, maxVal, step, onChange)
+	local row = Instance.new("Frame")
+	row.Size             = UDim2.new(1, -ROW_PAD * 2, 0, ROW_H)
+	row.Position         = UDim2.fromOffset(ROW_PAD, yOff)
+	row.BackgroundColor3 = T.BUTTON
+	row.BorderSizePixel  = 0
+	row.Parent           = parent
+	corner(row, 8)
 
-local sizeRow = Instance.new("Frame")
-sizeRow.Size             = UDim2.new(1, -24, 0, sizeRowH)
-sizeRow.Position         = UDim2.fromOffset(12, sizeRowY)
-sizeRow.BackgroundColor3 = T.BUTTON
-sizeRow.BorderSizePixel  = 0
-sizeRow.Parent           = ringCard
-corner(sizeRow, 8)
+	local lbl = mkLabel(row, label, 11)
+	lbl.Size     = UDim2.new(1, -180, 1, 0)
+	lbl.Position = UDim2.fromOffset(12, 0)
 
-local sizeLbl = mkLabel(sizeRow, "Ring Size", 11)
-sizeLbl.Size     = UDim2.new(.4, 0, 1, 0)
-sizeLbl.Position = UDim2.fromOffset(12, 0)
+	-- + button (rightmost)
+	local bPlus = Instance.new("TextButton")
+	bPlus.Size             = UDim2.fromOffset(NUM_BTN_W, ROW_H - 12)
+	bPlus.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W, .5, -(ROW_H - 12) / 2)
+	bPlus.BackgroundColor3 = T.HOVER
+	bPlus.BorderSizePixel  = 0
+	bPlus.Text             = "+"
+	bPlus.TextColor3       = T.WHITE
+	bPlus.TextSize         = 14
+	bPlus.Font             = Enum.Font.GothamBold
+	bPlus.AutoButtonColor  = false
+	bPlus.Parent           = row
+	corner(bPlus, 6)
+	outline(bPlus)
 
--- All three controls are right-aligned inside sizeRow
--- Layout (right → left): [+28px] gap4 [box 52px] gap4 [−28px] margin12
-local BTN_W = 28
-local BOX_W = 52
-local MARGIN = 12
-local GAP    = 4
+	-- text box (middle)
+	local box = Instance.new("TextBox")
+	box.Size             = UDim2.fromOffset(NUM_BOX_W, ROW_H - 12)
+	box.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W - NUM_GAP - NUM_BOX_W, .5, -(ROW_H - 12) / 2)
+	box.BackgroundColor3 = T.BG
+	box.BorderSizePixel  = 0
+	box.Text             = tostring(default)
+	box.TextColor3       = T.WHITE
+	box.TextSize         = 12
+	box.Font             = Enum.Font.GothamBold
+	box.TextXAlignment   = Enum.TextXAlignment.Center
+	box.ClearTextOnFocus = false
+	box.Parent           = row
+	corner(box, 6)
+	outline(box)
 
-local btnPlus = Instance.new("TextButton")
-btnPlus.Size             = UDim2.fromOffset(BTN_W, sizeRowH - 10)
-btnPlus.Position         = UDim2.new(1, -MARGIN - BTN_W, .5, -(sizeRowH - 10) / 2)
-btnPlus.BackgroundColor3 = T.HOVER
-btnPlus.BorderSizePixel  = 0
-btnPlus.Text             = "+"
-btnPlus.TextColor3       = T.WHITE
-btnPlus.TextSize         = 14
-btnPlus.Font             = Enum.Font.GothamBold
-btnPlus.AutoButtonColor  = false
-btnPlus.Parent           = sizeRow
-corner(btnPlus, 6)
-outline(btnPlus)
+	-- − button (left of box)
+	local bMinus = Instance.new("TextButton")
+	bMinus.Size             = UDim2.fromOffset(NUM_BTN_W, ROW_H - 12)
+	bMinus.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W - NUM_GAP - NUM_BOX_W - NUM_GAP - NUM_BTN_W, .5, -(ROW_H - 12) / 2)
+	bMinus.BackgroundColor3 = T.HOVER
+	bMinus.BorderSizePixel  = 0
+	bMinus.Text             = "−"
+	bMinus.TextColor3       = T.WHITE
+	bMinus.TextSize         = 14
+	bMinus.Font             = Enum.Font.GothamBold
+	bMinus.AutoButtonColor  = false
+	bMinus.Parent           = row
+	corner(bMinus, 6)
+	outline(bMinus)
 
-local sizeBox = Instance.new("TextBox")
-sizeBox.Size             = UDim2.fromOffset(BOX_W, sizeRowH - 10)
-sizeBox.Position         = UDim2.new(1, -MARGIN - BTN_W - GAP - BOX_W, .5, -(sizeRowH - 10) / 2)
-sizeBox.BackgroundColor3 = T.BG
-sizeBox.BorderSizePixel  = 0
-sizeBox.Text             = "50"
-sizeBox.TextColor3       = T.WHITE
-sizeBox.TextSize         = 12
-sizeBox.Font             = Enum.Font.GothamBold
-sizeBox.TextXAlignment   = Enum.TextXAlignment.Center
-sizeBox.ClearTextOnFocus = false
-sizeBox.Parent           = sizeRow
-corner(sizeBox, 6)
-outline(sizeBox)
+	-- hover tints
+	for _, b in ipairs({bPlus, bMinus}) do
+		b.MouseEnter:Connect(function()
+			TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.BORDER}):Play()
+		end)
+		b.MouseLeave:Connect(function()
+			TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.HOVER}):Play()
+		end)
+	end
 
-local btnMinus = Instance.new("TextButton")
-btnMinus.Size             = UDim2.fromOffset(BTN_W, sizeRowH - 10)
-btnMinus.Position         = UDim2.new(1, -MARGIN - BTN_W - GAP - BOX_W - GAP - BTN_W, .5, -(sizeRowH - 10) / 2)
-btnMinus.BackgroundColor3 = T.HOVER
-btnMinus.BorderSizePixel  = 0
-btnMinus.Text             = "−"
-btnMinus.TextColor3       = T.WHITE
-btnMinus.TextSize         = 14
-btnMinus.Font             = Enum.Font.GothamBold
-btnMinus.AutoButtonColor  = false
-btnMinus.Parent           = sizeRow
-corner(btnMinus, 6)
-outline(btnMinus)
+	local value = default
 
-local ringSize = 50
+	local function apply(v)
+		v = tonumber(v) or value
+		v = math.clamp(math.floor(v / step + .5) * step, minVal, maxVal)
+		value = v
+		box.Text = tostring(value)
+		if onChange then onChange(value) end
+	end
 
-local function applySize(v)
-	v = tonumber(v) or ringSize
-	v = math.clamp(math.floor(v + .5), 1, 500)
-	ringSize = v
-	sizeBox.Text = tostring(ringSize)
+	bPlus.MouseButton1Click:Connect(function()  playClick() apply(value + step) end)
+	bMinus.MouseButton1Click:Connect(function() playClick() apply(value - step) end)
+	box.FocusLost:Connect(function() apply(box.Text) end)
+
+	return {
+		get = function() return value end,
+		set = function(v) apply(v) end,
+	}
 end
 
-btnPlus.MouseButton1Click:Connect(function()  playClick() applySize(ringSize + 10) end)
-btnMinus.MouseButton1Click:Connect(function() playClick() applySize(ringSize - 10) end)
-sizeBox.FocusLost:Connect(function() applySize(sizeBox.Text) end)
+------------------------------------------------------------------------
+-- ROOT GUI
+------------------------------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name           = "YesHub"
+gui.ResetOnSpawn   = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent         = playerGui
 
--- Hover tint for +/− (they're not using mkButton, so add manually)
-for _, b in ipairs({btnPlus, btnMinus}) do
-	b.MouseEnter:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.BORDER}):Play()
-	end)
-	b.MouseLeave:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.HOVER}):Play()
-	end)
+------------------------------------------------------------------------
+-- LAUNCHER BUTTON
+------------------------------------------------------------------------
+local launcher = Instance.new("TextButton")
+launcher.Name             = "YLauncher"
+launcher.Size             = UDim2.fromOffset(46, 46)
+launcher.Position         = UDim2.new(0, 18, .5, -23)
+launcher.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+launcher.BorderSizePixel  = 0
+launcher.Text             = "Y"
+launcher.TextColor3       = T.WHITE
+launcher.TextSize         = 24
+launcher.Font             = Enum.Font.GothamBlack
+launcher.AutoButtonColor  = false
+launcher.ZIndex           = 100
+launcher.Parent           = gui
+corner(launcher, 12)
+outline(launcher)
+
+------------------------------------------------------------------------
+-- MAIN WINDOW
+------------------------------------------------------------------------
+local main = Instance.new("Frame")
+main.Name                  = "Main"
+main.AnchorPoint           = Vector2.new(.5, .5)
+main.Position              = UDim2.fromScale(.5, .5)
+main.Size                  = UDim2.fromOffset(720, 430)
+main.BackgroundColor3      = T.BG
+main.BackgroundTransparency = 1 - bgOpacity
+main.BorderSizePixel       = 0
+main.Visible               = false
+main.ClipsDescendants      = true
+main.Parent                = gui
+corner(main, 14)
+outline(main)
+
+------------------------------------------------------------------------
+-- HEADER
+------------------------------------------------------------------------
+local headerAvatar = Instance.new("ImageLabel")
+headerAvatar.Size             = UDim2.fromOffset(46, 46)
+headerAvatar.Position         = UDim2.fromOffset(18, 14)
+headerAvatar.BackgroundColor3 = T.PANEL
+headerAvatar.BorderSizePixel  = 0
+headerAvatar.Parent           = main
+corner(headerAvatar, 12)
+
+local lblTitle = mkLabel(main, "Yes-Hub", 20)
+lblTitle.Size     = UDim2.fromOffset(300, 26)
+lblTitle.Position = UDim2.fromOffset(76, 11)
+
+local lblAuthor = mkLabel(main, "by yes.dev", 11)
+lblAuthor.Size       = UDim2.fromOffset(300, 18)
+lblAuthor.Position   = UDim2.fromOffset(77, 36)
+lblAuthor.TextColor3 = T.MUTED
+
+local lblDisplay = mkLabel(main, player.DisplayName, 12)
+lblDisplay.Size           = UDim2.fromOffset(200, 20)
+lblDisplay.Position       = UDim2.new(1, -218, 0, 13)
+lblDisplay.TextXAlignment = Enum.TextXAlignment.Right
+
+local lblUsername = mkLabel(main, "@" .. player.Name, 10)
+lblUsername.Size           = UDim2.fromOffset(200, 16)
+lblUsername.Position       = UDim2.new(1, -218, 0, 36)
+lblUsername.TextXAlignment = Enum.TextXAlignment.Right
+lblUsername.TextColor3     = T.MUTED
+
+local divider = Instance.new("Frame")
+divider.Size                  = UDim2.new(1, -36, 0, 1)
+divider.Position              = UDim2.fromOffset(18, 73)
+divider.BackgroundColor3      = T.BORDER
+divider.BackgroundTransparency = .35
+divider.BorderSizePixel       = 0
+divider.Parent                = main
+
+------------------------------------------------------------------------
+-- SIDEBAR NAV
+-- Pages: Home | Ring | Player | Modules | Settings
+------------------------------------------------------------------------
+local navLabel = mkLabel(main, "Navigation", 9)
+navLabel.Size       = UDim2.fromOffset(125, 16)
+navLabel.Position   = UDim2.fromOffset(20, 86)
+navLabel.TextColor3 = T.MUTED
+
+local NAV_X   = 18
+local NAV_W   = 125
+local NAV_H   = 32
+local NAV_GAP = 5
+
+local function mkNavBtn(label, idx)
+	local b = mkButton(main, label)
+	b.Size     = UDim2.fromOffset(NAV_W, NAV_H)
+	b.Position = UDim2.fromOffset(NAV_X, 107 + (idx - 1) * (NAV_H + NAV_GAP))
+	return b
 end
 
-local maxLbl = mkLabel(ringCard, "Max: 500", 9)
-maxLbl.Size      = UDim2.new(1, -24, 0, 16)
-maxLbl.Position  = UDim2.fromOffset(12, 200)
-maxLbl.TextColor3 = T.MUTED
+local btnHome     = mkNavBtn("Home",     1)
+local btnRing     = mkNavBtn("Ring",     2)
+local btnPlayer   = mkNavBtn("Player",   3)
+local btnModules  = mkNavBtn("Modules",  4)
+local btnSettings = mkNavBtn("Settings", 5)
 
+------------------------------------------------------------------------
+-- PAGE CONTAINER
+------------------------------------------------------------------------
+local pages = Instance.new("Frame")
+pages.Size                 = UDim2.new(1, -163, 1, -84)
+pages.Position             = UDim2.fromOffset(153, 84)
+pages.BackgroundTransparency = 1
+pages.ClipsDescendants     = true
+pages.Parent               = main
+
+------------------------------------------------------------------------
+-- PAGE: HOME
+------------------------------------------------------------------------
+local pageHome = Instance.new("Frame")
+pageHome.Size                  = UDim2.fromScale(1, 1)
+pageHome.BackgroundTransparency = 1
+pageHome.Visible               = true
+pageHome.Parent                = pages
+
+local homeTitleLbl = mkLabel(pageHome, "Welcome back, " .. player.DisplayName, 18)
+homeTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+homeTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local homeSubLbl = mkLabel(pageHome, "Your Yes-Hub dashboard", 10)
+homeSubLbl.Size       = UDim2.new(1, -8, 0, 16)
+homeSubLbl.Position   = UDim2.fromOffset(4, 32)
+homeSubLbl.TextColor3 = T.MUTED
+
+-- Player info card
+local playerCard = Instance.new("Frame")
+playerCard.Size                  = UDim2.new(1, -8, 0, 108)
+playerCard.Position              = UDim2.fromOffset(4, 54)
+playerCard.BackgroundColor3      = T.PANEL
+playerCard.BackgroundTransparency = .12
+playerCard.BorderSizePixel       = 0
+playerCard.Parent                = pageHome
+corner(playerCard, 10)
+outline(playerCard)
+
+local homeAvatarImg = Instance.new("ImageLabel")
+homeAvatarImg.Size             = UDim2.fromOffset(72, 72)
+homeAvatarImg.Position         = UDim2.fromOffset(14, 18)
+homeAvatarImg.BackgroundColor3 = T.BUTTON
+homeAvatarImg.BorderSizePixel  = 0
+homeAvatarImg.Parent           = playerCard
+corner(homeAvatarImg, 10)
+
+local homeNameLbl = mkLabel(playerCard, player.DisplayName, 15)
+homeNameLbl.Size     = UDim2.new(1, -110, 0, 22)
+homeNameLbl.Position = UDim2.fromOffset(100, 16)
+
+local homeUserLbl = mkLabel(playerCard, "@" .. player.Name, 10)
+homeUserLbl.Size       = UDim2.new(1, -110, 0, 16)
+homeUserLbl.Position   = UDim2.fromOffset(100, 40)
+homeUserLbl.TextColor3 = T.MUTED
+
+local homeIdLbl = mkLabel(playerCard, "ID  •  " .. player.UserId, 10)
+homeIdLbl.Size       = UDim2.new(1, -110, 0, 16)
+homeIdLbl.Position   = UDim2.fromOffset(100, 60)
+homeIdLbl.TextColor3 = T.MUTED
+
+-- Playtime + Status side by side
+local playtimeCard = Instance.new("Frame")
+playtimeCard.Size                  = UDim2.new(.5, -6, 0, 62)
+playtimeCard.Position              = UDim2.fromOffset(4, 170)
+playtimeCard.BackgroundColor3      = T.PANEL
+playtimeCard.BackgroundTransparency = .12
+playtimeCard.BorderSizePixel       = 0
+playtimeCard.Parent                = pageHome
+corner(playtimeCard, 10)
+outline(playtimeCard)
+
+local playLabelLbl = mkLabel(playtimeCard, "PLAYTIME", 9)
+playLabelLbl.Size       = UDim2.new(1, -20, 0, 16)
+playLabelLbl.Position   = UDim2.fromOffset(10, 8)
+playLabelLbl.TextColor3 = T.MUTED
+
+local playValueLbl = mkLabel(playtimeCard, "00m 00s", 16)
+playValueLbl.Size     = UDim2.new(1, -20, 0, 24)
+playValueLbl.Position = UDim2.fromOffset(10, 28)
+
+local statusCard = Instance.new("Frame")
+statusCard.Size                  = UDim2.new(.5, -6, 0, 62)
+statusCard.Position              = UDim2.new(.5, 2, 0, 170)
+statusCard.BackgroundColor3      = T.PANEL
+statusCard.BackgroundTransparency = .12
+statusCard.BorderSizePixel       = 0
+statusCard.Parent                = pageHome
+corner(statusCard, 10)
+outline(statusCard)
+
+local statusDot = Instance.new("Frame")
+statusDot.Size             = UDim2.fromOffset(7, 7)
+statusDot.Position         = UDim2.fromOffset(12, 12)
+statusDot.BackgroundColor3 = T.ON
+statusDot.BorderSizePixel  = 0
+statusDot.Parent           = statusCard
+corner(statusDot, 8)
+
+local statusTitleLbl = mkLabel(statusCard, "Session Active", 11)
+statusTitleLbl.Size     = UDim2.new(1, -36, 0, 18)
+statusTitleLbl.Position = UDim2.fromOffset(26, 4)
+
+local statusTextLbl = mkLabel(statusCard, "Running normally.", 9)
+statusTextLbl.Size       = UDim2.new(1, -20, 0, 16)
+statusTextLbl.Position   = UDim2.fromOffset(10, 34)
+statusTextLbl.TextColor3 = T.MUTED
+
+-- Infinite Yield button
+local iyButton = mkButton(pageHome, "Infinite Yield")
+iyButton.Size     = UDim2.new(1, -8, 0, 34)
+iyButton.Position = UDim2.fromOffset(4, 240)
+
+iyButton.MouseButton1Click:Connect(function()
+	playClick()
+	statusTextLbl.Text = "Infinite Yield not configured."
+end)
+
+------------------------------------------------------------------------
+-- PAGE: RING
+------------------------------------------------------------------------
+local pageRing = Instance.new("Frame")
+pageRing.Size                  = UDim2.fromScale(1, 1)
+pageRing.BackgroundTransparency = 1
+pageRing.Visible               = false
+pageRing.Parent                = pages
+
+local ringTitleLbl = mkLabel(pageRing, "Ring", 18)
+ringTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+ringTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local ringSubLbl = mkLabel(pageRing, "Super Ring V5", 10)
+ringSubLbl.Size       = UDim2.new(1, -8, 0, 16)
+ringSubLbl.Position   = UDim2.fromOffset(4, 32)
+ringSubLbl.TextColor3 = T.MUTED
+
+local ringCard = Instance.new("Frame")
+ringCard.Size                  = UDim2.new(1, -8, 0, 238)
+ringCard.Position              = UDim2.fromOffset(4, 54)
+ringCard.BackgroundColor3      = T.PANEL
+ringCard.BackgroundTransparency = .12
+ringCard.BorderSizePixel       = 0
+ringCard.Parent                = pageRing
+corner(ringCard, 10)
+outline(ringCard)
+
+local ringCardTitleLbl = mkLabel(ringCard, "Super Ring V5", 13)
+ringCardTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
+ringCardTitleLbl.Position = UDim2.fromOffset(12, 10)
+
+local ringCardSubLbl = mkLabel(ringCard, "Configure ring appearance and behaviour", 9)
+ringCardSubLbl.Size       = UDim2.new(1, -24, 0, 16)
+ringCardSubLbl.Position   = UDim2.fromOffset(12, 30)
+ringCardSubLbl.TextColor3 = T.MUTED
+
+-- Ring status text — updated by toggle onChange
 local ringStatusLbl = mkLabel(pageRing, "Ring is currently disabled.", 10)
-ringStatusLbl.Size      = UDim2.new(1, -8, 0, 16)
-ringStatusLbl.Position  = UDim2.fromOffset(4, 304)
+ringStatusLbl.Size       = UDim2.new(1, -8, 0, 16)
+ringStatusLbl.Position   = UDim2.fromOffset(4, 302)
 ringStatusLbl.TextColor3 = T.MUTED
 
-toggleRingEnabled.get() -- initial state wired below after showPage defined
--- Status text updates when toggle fires
-local _origRingToggleFn
--- Wire status update via re-connecting; the pill button is accessible through the toggle row
-do
-	-- Access the pill inside the first toggle row (Ring Enabled = row child index 1 in ringCard)
-	local ringEnabledRow = ringCard:GetChildren()
-	-- find the pill by iterating children of the row that is a TextButton
-	for _, child in ipairs(ringCard:GetChildren()) do
-		if child:IsA("Frame") and child.Position == UDim2.fromOffset(12, 56) then
-			for _, sub in ipairs(child:GetChildren()) do
-				if sub:IsA("TextButton") then
-					sub.MouseButton1Click:Connect(function()
-						task.defer(function()
-							ringStatusLbl.Text = toggleRingEnabled.get()
-								and "Ring is currently enabled."
-								or  "Ring is currently disabled."
-						end)
-					end)
-					break
+local RING_ROW_START = 54
+local RING_ROW_STEP  = 48
+
+local toggleRingEnabled = makeToggle(ringCard, "Ring Enabled", RING_ROW_START, false, function(state)
+	ringStatusLbl.Text = state and "Ring is currently enabled." or "Ring is currently disabled."
+end)
+local toggleRingVisuals = makeToggle(ringCard, "Ring Visuals", RING_ROW_START + RING_ROW_STEP, true)
+
+local ringSizeRow = makeNumRow(ringCard, "Ring Size", RING_ROW_START + RING_ROW_STEP * 2, 50, 1, 500, 10)
+
+local maxRingLbl = mkLabel(ringCard, "Max: 500", 9)
+maxRingLbl.Size       = UDim2.new(1, -24, 0, 14)
+maxRingLbl.Position   = UDim2.fromOffset(12, RING_ROW_START + RING_ROW_STEP * 2 + ROW_H + 4)
+maxRingLbl.TextColor3 = T.MUTED
+
+------------------------------------------------------------------------
+-- PAGE: PLAYER
+------------------------------------------------------------------------
+local pagePlayer = Instance.new("Frame")
+pagePlayer.Size                  = UDim2.fromScale(1, 1)
+pagePlayer.BackgroundTransparency = 1
+pagePlayer.Visible               = false
+pagePlayer.Parent                = pages
+
+local playerPageTitleLbl = mkLabel(pagePlayer, "Player", 18)
+playerPageTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
+playerPageTitleLbl.Position = UDim2.fromOffset(4, 6)
+
+local playerPageSubLbl = mkLabel(pagePlayer, "Character settings and movement", 10)
+playerPageSubLbl.Size       = UDim2.new(1, -8, 0, 16)
+playerPageSubLbl.Position   = UDim2.fromOffset(4, 32)
+playerPageSubLbl.TextColor3 = T.MUTED
+
+-- Scrolling frame so all configs fit without clipping
+local playerScroll = Instance.new("ScrollingFrame")
+playerScroll.Size                  = UDim2.new(1, -4, 1, -56)
+playerScroll.Position              = UDim2.fromOffset(4, 54)
+playerScroll.BackgroundTransparency = 1
+playerScroll.BorderSizePixel       = 0
+playerScroll.ScrollBarThickness    = 3
+playerScroll.ScrollBarImageColor3  = T.BORDER
+playerScroll.CanvasSize            = UDim2.fromOffset(0, 0)  -- set below
+playerScroll.ClipsDescendants      = true
+playerScroll.Parent                = pagePlayer
+
+-- Card inside scroll
+local playerCfgCard = Instance.new("Frame")
+playerCfgCard.BackgroundColor3      = T.PANEL
+playerCfgCard.BackgroundTransparency = .12
+playerCfgCard.BorderSizePixel       = 0
+playerCfgCard.Parent                = playerScroll
+corner(playerCfgCard, 10)
+outline(playerCfgCard)
+
+local playerCfgTitleLbl = mkLabel(playerCfgCard, "Character Config", 13)
+playerCfgTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
+playerCfgTitleLbl.Position = UDim2.fromOffset(12, 10)
+
+local playerCfgSubLbl = mkLabel(playerCfgCard, "All values apply instantly", 9)
+playerCfgSubLbl.Size       = UDim2.new(1, -24, 0, 16)
+playerCfgSubLbl.Position   = UDim2.fromOffset(12, 30)
+playerCfgSubLbl.TextColor3 = T.MUTED
+
+-- Helper: get humanoid safely
+local function getHumanoid()
+	local char = player.Character
+	if not char then return nil end
+	return char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Row layout tracker
+local PC_ROW_START = 54   -- y inside playerCfgCard after the header
+local PC_ROW_STEP  = 48   -- gap between rows
+local pcRowCount   = 0
+
+local function nextY()
+	local y = PC_ROW_START + pcRowCount * PC_ROW_STEP
+	pcRowCount += 1
+	return y
+end
+
+-- WALK SPEED  (default 16, range 0–500, step 1)
+local wsRow = makeNumRow(playerCfgCard, "Walk Speed", nextY(), 16, 0, 500, 1, function(v)
+	local h = getHumanoid()
+	if h then h.WalkSpeed = v end
+end)
+
+-- JUMP POWER  (default 50, range 0–500, step 5)
+local jpRow = makeNumRow(playerCfgCard, "Jump Power", nextY(), 50, 0, 500, 5, function(v)
+	local h = getHumanoid()
+	if h then h.JumpPower = v end
+end)
+
+-- JUMP HEIGHT (default 7.2, range 0–100, step 0.5 — shown as ×10 integer to keep TextBox clean)
+-- Using JumpHeight property (Humanoid.UseJumpPower = false path)
+local jhRow = makeNumRow(playerCfgCard, "Jump Height", nextY(), 7, 0, 100, 1, function(v)
+	local h = getHumanoid()
+	if h then
+		pcall(function() h.JumpHeight = v end)
+	end
+end)
+
+-- HIP HEIGHT (default 2, range 0–20, step 0.5 → stored ×2 as integer)
+local hhRow = makeNumRow(playerCfgCard, "Hip Height", nextY(), 2, 0, 20, 1, function(v)
+	local h = getHumanoid()
+	if h then
+		pcall(function() h.HipHeight = v end)
+	end
+end)
+
+-- GRAVITY (default 196.2, range 0–1000, step 10 — set via Workspace)
+local gravRow = makeNumRow(playerCfgCard, "Gravity", nextY(), 196, 0, 1000, 10, function(v)
+	workspace.Gravity = v
+end)
+
+-- NOCLIP toggle
+local noclipActive = false
+local noclipConn
+
+local toggleNoclip = makeToggle(playerCfgCard, "Noclip", nextY(), false, function(state)
+	noclipActive = state
+	if state then
+		noclipConn = RunService.Stepped:Connect(function()
+			local char = player.Character
+			if not char then return end
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.CanCollide = false
 				end
 			end
-			break
+		end)
+	else
+		if noclipConn then
+			noclipConn:Disconnect()
+			noclipConn = nil
+		end
+		-- restore collision
+		local char = player.Character
+		if char then
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.CanCollide = true
+				end
+			end
 		end
 	end
-end
+end)
+
+-- INFINITE JUMP toggle
+local infJumpConn
+
+local toggleInfJump = makeToggle(playerCfgCard, "Infinite Jump", nextY(), false, function(state)
+	if state then
+		infJumpConn = UserInputService.JumpRequest:Connect(function()
+			local h = getHumanoid()
+			if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+		end)
+	else
+		if infJumpConn then
+			infJumpConn:Disconnect()
+			infJumpConn = nil
+		end
+	end
+end)
+
+-- GOD MODE toggle (sets MaxHealth+Health to huge number)
+local godOrigMax, godOrigHealth
+
+local toggleGod = makeToggle(playerCfgCard, "God Mode", nextY(), false, function(state)
+	local h = getHumanoid()
+	if not h then return end
+	if state then
+		godOrigMax    = h.MaxHealth
+		godOrigHealth = h.Health
+		h.MaxHealth   = math.huge
+		h.Health      = math.huge
+	else
+		h.MaxHealth = godOrigMax or 100
+		h.Health    = godOrigHealth or 100
+	end
+end)
+
+-- INVISIBLE toggle (sets all parts transparency to 1 locally)
+local invisOrigTransp = {}
+
+local toggleInvis = makeToggle(playerCfgCard, "Invisible", nextY(), false, function(state)
+	local char = player.Character
+	if not char then return end
+	if state then
+		invisOrigTransp = {}
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+				invisOrigTransp[p] = p.LocalTransparencyModifier
+				p.LocalTransparencyModifier = 1
+			end
+		end
+	else
+		for p, v in pairs(invisOrigTransp) do
+			if p and p.Parent then
+				p.LocalTransparencyModifier = v
+			end
+		end
+		invisOrigTransp = {}
+	end
+end)
+
+-- SPEED BOOST toggle (×2 walk speed while on)
+local speedBoostOrigWS
+
+local toggleSpeedBoost = makeToggle(playerCfgCard, "Speed Boost ×2", nextY(), false, function(state)
+	local h = getHumanoid()
+	if not h then return end
+	if state then
+		speedBoostOrigWS = h.WalkSpeed
+		h.WalkSpeed = h.WalkSpeed * 2
+		wsRow.set(h.WalkSpeed)
+	else
+		h.WalkSpeed = speedBoostOrigWS or 16
+		wsRow.set(h.WalkSpeed)
+	end
+end)
+
+-- SIZE: scale whole character
+local charScaleRow = makeNumRow(playerCfgCard, "Char Scale ×", nextY(), 1, 1, 10, 1, function(v)
+	local char = player.Character
+	if not char then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	local desc = hum:FindFirstChildOfClass("HumanoidDescription") or Instance.new("HumanoidDescription")
+	desc.HeadScale   = v
+	desc.BodyWidthScale = v
+	desc.BodyHeightScale = v
+	desc.BodyDepthScale  = v
+	desc.ProportionScale = v
+	pcall(function() hum:ApplyDescription(desc) end)
+end)
+
+-- Freeze toggle (anchor root part)
+local toggleFreeze = makeToggle(playerCfgCard, "Freeze", nextY(), false, function(state)
+	local char = player.Character
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.Anchored = state
+	end
+end)
+
+-- Total rows × step + header height = card height
+local totalCardH = PC_ROW_START + pcRowCount * PC_ROW_STEP + 12
+
+playerCfgCard.Size       = UDim2.new(1, -4, 0, totalCardH)
+playerCfgCard.Position   = UDim2.fromOffset(0, 0)
+playerScroll.CanvasSize  = UDim2.fromOffset(0, totalCardH + 8)
 
 ------------------------------------------------------------------------
 -- PAGE: MODULES
 ------------------------------------------------------------------------
 local pageModules = Instance.new("Frame")
-pageModules.Size                = UDim2.fromScale(1, 1)
+pageModules.Size                  = UDim2.fromScale(1, 1)
 pageModules.BackgroundTransparency = 1
-pageModules.Visible             = false
-pageModules.Parent              = pages
+pageModules.Visible               = false
+pageModules.Parent                = pages
 
 local modTitleLbl = mkLabel(pageModules, "Modules", 18)
 modTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
 modTitleLbl.Position = UDim2.fromOffset(4, 6)
 
 local modSubLbl = mkLabel(pageModules, "Installed feature modules", 10)
-modSubLbl.Size      = UDim2.new(1, -8, 0, 16)
-modSubLbl.Position  = UDim2.fromOffset(4, 32)
+modSubLbl.Size       = UDim2.new(1, -8, 0, 16)
+modSubLbl.Position   = UDim2.fromOffset(4, 32)
 modSubLbl.TextColor3 = T.MUTED
 
 local modEmptyLbl = mkLabel(pageModules, "No modules installed.", 10)
-modEmptyLbl.Size      = UDim2.new(1, -8, 0, 16)
-modEmptyLbl.Position  = UDim2.fromOffset(4, 60)
+modEmptyLbl.Size       = UDim2.new(1, -8, 0, 16)
+modEmptyLbl.Position   = UDim2.fromOffset(4, 60)
 modEmptyLbl.TextColor3 = T.MUTED
 
 ------------------------------------------------------------------------
 -- PAGE: SETTINGS
 ------------------------------------------------------------------------
 local pageSettings = Instance.new("Frame")
-pageSettings.Size                = UDim2.fromScale(1, 1)
+pageSettings.Size                  = UDim2.fromScale(1, 1)
 pageSettings.BackgroundTransparency = 1
-pageSettings.Visible             = false
-pageSettings.Parent              = pages
+pageSettings.Visible               = false
+pageSettings.Parent                = pages
 
 local settingsTitleLbl = mkLabel(pageSettings, "Settings", 18)
 settingsTitleLbl.Size     = UDim2.new(1, -8, 0, 26)
 settingsTitleLbl.Position = UDim2.fromOffset(4, 6)
 
 local settingsSubLbl = mkLabel(pageSettings, "Hub configuration", 10)
-settingsSubLbl.Size      = UDim2.new(1, -8, 0, 16)
-settingsSubLbl.Position  = UDim2.fromOffset(4, 32)
+settingsSubLbl.Size       = UDim2.new(1, -8, 0, 16)
+settingsSubLbl.Position   = UDim2.fromOffset(4, 32)
 settingsSubLbl.TextColor3 = T.MUTED
 
--- Opacity row
-local opacityRow = Instance.new("Frame")
-opacityRow.Size             = UDim2.new(1, -8, 0, 56)
-opacityRow.Position         = UDim2.fromOffset(4, 58)
-opacityRow.BackgroundColor3 = T.PANEL
-opacityRow.BackgroundTransparency = .12
-opacityRow.BorderSizePixel  = 0
-opacityRow.Parent           = pageSettings
-corner(opacityRow, 8)
-outline(opacityRow)
+-- Settings card
+local settingsCard = Instance.new("Frame")
+settingsCard.Size                  = UDim2.new(1, -8, 0, 180)
+settingsCard.Position              = UDim2.fromOffset(4, 54)
+settingsCard.BackgroundColor3      = T.PANEL
+settingsCard.BackgroundTransparency = .12
+settingsCard.BorderSizePixel       = 0
+settingsCard.Parent                = pageSettings
+corner(settingsCard, 10)
+outline(settingsCard)
 
-local opTitleLbl = mkLabel(opacityRow, "Background Opacity", 11)
+local settingsCardTitleLbl = mkLabel(settingsCard, "Display", 13)
+settingsCardTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
+settingsCardTitleLbl.Position = UDim2.fromOffset(12, 10)
+
+-- OPACITY SLIDER  (y=38 inside settingsCard)
+local opRowH = 54
+local opRow  = Instance.new("Frame")
+opRow.Size             = UDim2.new(1, -24, 0, opRowH)
+opRow.Position         = UDim2.fromOffset(12, 36)
+opRow.BackgroundColor3 = T.BUTTON
+opRow.BorderSizePixel  = 0
+opRow.Parent           = settingsCard
+corner(opRow, 8)
+
+local opTitleLbl = mkLabel(opRow, "Background Opacity", 11)
 opTitleLbl.Size     = UDim2.fromOffset(180, 18)
 opTitleLbl.Position = UDim2.fromOffset(12, 8)
 
-local opValueLbl = mkLabel(opacityRow, "95%", 11)
-opValueLbl.Size           = UDim2.fromOffset(48, 18)
-opValueLbl.Position       = UDim2.new(1, -60, 0, 8)
+local opValueLbl = mkLabel(opRow, "95%", 11)
+opValueLbl.Size           = UDim2.fromOffset(46, 18)
+opValueLbl.Position       = UDim2.new(1, -58, 0, 8)
 opValueLbl.TextXAlignment = Enum.TextXAlignment.Right
 
 local opTrack = Instance.new("Frame")
@@ -627,7 +871,7 @@ opTrack.Position         = UDim2.fromOffset(12, 36)
 opTrack.BackgroundColor3 = T.BORDER
 opTrack.BorderSizePixel  = 0
 opTrack.Active           = true
-opTrack.Parent           = opacityRow
+opTrack.Parent           = opRow
 corner(opTrack, 6)
 
 local opFill = Instance.new("Frame")
@@ -653,7 +897,6 @@ local function setOpacity(x)
 	local left  = opTrack.AbsolutePosition.X
 	local width = opTrack.AbsoluteSize.X
 	local ratio = math.clamp((x - left) / width, 0, 1)
-	-- snap to 5% steps
 	ratio = math.floor(ratio * 20 + .5) / 20
 	bgOpacity = ratio
 	main.BackgroundTransparency = 1 - bgOpacity
@@ -662,23 +905,20 @@ local function setOpacity(x)
 	opValueLbl.Text = tostring(math.floor(ratio * 100 + .5)) .. "%"
 end
 
-opTrack.InputBegan:Connect(function(i)
+local function startOpDrag(i)
 	if i.UserInputType == Enum.UserInputType.MouseButton1 then
 		opDragging = true
 		setOpacity(i.Position.X)
 	end
-end)
-opFill.InputBegan:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton1 then
-		opDragging = true
-		setOpacity(i.Position.X)
-	end
-end)
-opKnob.InputBegan:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton1 then
-		opDragging = true
-		setOpacity(i.Position.X)
-	end
+end
+opTrack.InputBegan:Connect(startOpDrag)
+opFill.InputBegan:Connect(startOpDrag)
+opKnob.InputBegan:Connect(startOpDrag)
+
+-- HIDE MENU BUTTON toggle  (row inside settingsCard)
+local hideMenuToggle = makeToggle(settingsCard, "Hide Menu Button", 36 + opRowH + 8, false, function(state)
+	launcher.Visible = not state
+	menuVisible = not state
 end)
 
 ------------------------------------------------------------------------
@@ -687,12 +927,14 @@ end)
 local PAGES = {
 	Home     = pageHome,
 	Ring     = pageRing,
+	Player   = pagePlayer,
 	Modules  = pageModules,
 	Settings = pageSettings,
 }
 local NAV_BTNS = {
 	Home     = btnHome,
 	Ring     = btnRing,
+	Player   = btnPlayer,
 	Modules  = btnModules,
 	Settings = btnSettings,
 }
@@ -700,17 +942,17 @@ local NAV_BTNS = {
 local function showPage(name)
 	for k, pg in pairs(PAGES)    do pg.Visible = (k == name) end
 	for k, nb in pairs(NAV_BTNS) do
-		-- bypass the hover tween — set directly
 		nb.BackgroundColor3 = (k == name) and T.HOVER or T.BUTTON
 	end
 end
 
 btnHome.MouseButton1Click:Connect(function()     playClick() showPage("Home") end)
 btnRing.MouseButton1Click:Connect(function()     playClick() showPage("Ring") end)
+btnPlayer.MouseButton1Click:Connect(function()   playClick() showPage("Player") end)
 btnModules.MouseButton1Click:Connect(function()  playClick() showPage("Modules") end)
 btnSettings.MouseButton1Click:Connect(function() playClick() showPage("Settings") end)
 
-showPage("Home")   -- default
+showPage("Home")
 
 ------------------------------------------------------------------------
 -- AVATAR ASYNC LOAD
@@ -724,7 +966,7 @@ task.spawn(function()
 		)
 	end)
 	if ok then
-		headerAvatar.Image = img
+		headerAvatar.Image  = img
 		homeAvatarImg.Image = img
 	end
 end)
@@ -740,15 +982,13 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------------------
--- SINGLE InputChanged / InputEnded — handles both drag and opacity
+-- INPUT: single InputChanged + InputEnded for all drag
 ------------------------------------------------------------------------
 local DRAG_THRESH = 6
 
--- Main window drag state
 local mainDown, mainDragging = false, false
 local mainDragOrigin, mainStartPos
 
--- Launcher drag state
 local lDown, lDragging, lDidDrag = false, false, false
 local lDragOrigin, lStartPos
 
@@ -756,10 +996,10 @@ main.InputBegan:Connect(function(i)
 	if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 	local relY = i.Position.Y - main.AbsolutePosition.Y
 	if relY <= 73 then
-		mainDown        = true
-		mainDragging    = false
-		mainDragOrigin  = i.Position
-		mainStartPos    = main.Position
+		mainDown       = true
+		mainDragging   = false
+		mainDragOrigin = i.Position
+		mainStartPos   = main.Position
 	end
 end)
 
@@ -775,10 +1015,8 @@ end)
 UserInputService.InputChanged:Connect(function(i)
 	if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 
-	-- opacity slider
 	if opDragging then setOpacity(i.Position.X) end
 
-	-- main drag
 	if mainDown then
 		local d = i.Position - mainDragOrigin
 		if not mainDragging and d.Magnitude >= DRAG_THRESH then mainDragging = true end
@@ -790,7 +1028,6 @@ UserInputService.InputChanged:Connect(function(i)
 		end
 	end
 
-	-- launcher drag
 	if lDown then
 		local d = i.Position - lDragOrigin
 		if not lDragging and d.Magnitude >= DRAG_THRESH then
@@ -816,7 +1053,7 @@ UserInputService.InputEnded:Connect(function(i)
 end)
 
 ------------------------------------------------------------------------
--- OPEN / CLOSE TOGGLE
+-- OPEN / CLOSE
 ------------------------------------------------------------------------
 local function toggle()
 	if busy then return end
@@ -854,6 +1091,37 @@ UserInputService.InputBegan:Connect(function(i, processed)
 	if i.KeyCode == Enum.KeyCode.LeftControl then toggle() end
 end)
 
+------------------------------------------------------------------------
+-- Respawn handling: re-apply active player settings on character load
+------------------------------------------------------------------------
+player.CharacterAdded:Connect(function(char)
+	-- Give the character a frame to fully load
+	task.wait(0.1)
+
+	local h = char:WaitForChild("Humanoid", 5)
+	if not h then return end
+
+	-- Re-apply numeric values
+	h.WalkSpeed = wsRow.get()
+	h.JumpPower = jpRow.get()
+	pcall(function() h.JumpHeight = jhRow.get() end)
+	pcall(function() h.HipHeight  = hhRow.get() end)
+
+	-- Re-apply noclip connection
+	if noclipActive then
+		if noclipConn then noclipConn:Disconnect() end
+		noclipConn = RunService.Stepped:Connect(function()
+			local c = player.Character
+			if not c then return end
+			for _, p in ipairs(c:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = false end
+			end
+		end)
+	end
+
+	-- Gravity persists on workspace, no action needed
+end)
+
 -- Initial state
-main.Visible    = false
+main.Visible     = false
 launcher.Visible = true
