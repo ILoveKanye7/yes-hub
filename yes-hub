@@ -1,7 +1,6 @@
 --========================================================
--- YES-HUB HOME UI
--- Author: yes.dev
--- Single-file Roblox LocalScript UI
+-- YES-HUB | by yes.dev
+-- COMPLETE SINGLE-FILE UI
 --========================================================
 
 local Players = game:GetService("Players")
@@ -9,648 +8,573 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
-local old = PlayerGui:FindFirstChild("YesHub")
+local old = playerGui:FindFirstChild("YesHub")
 if old then old:Destroy() end
 
---========================================================
--- CONFIG / THEME
---========================================================
-
-local Theme = {
-	Background = Color3.fromRGB(9, 9, 9),
-	Surface = Color3.fromRGB(15, 15, 15),
-	Surface2 = Color3.fromRGB(21, 21, 21),
-	Button = Color3.fromRGB(25, 25, 25),
-	ButtonHover = Color3.fromRGB(34, 34, 34),
-	Border = Color3.fromRGB(52, 52, 52),
-	Text = Color3.fromRGB(255, 255, 255),
-	Muted = Color3.fromRGB(140, 140, 140),
-	Dim = Color3.fromRGB(90, 90, 90),
+local THEME = {
+	BG = Color3.fromRGB(8, 8, 8),
+	PANEL = Color3.fromRGB(16, 16, 16),
+	BUTTON = Color3.fromRGB(25, 25, 25),
+	HOVER = Color3.fromRGB(36, 36, 36),
+	BORDER = Color3.fromRGB(50, 50, 50),
+	WHITE = Color3.fromRGB(255, 255, 255),
+	MUTED = Color3.fromRGB(145, 145, 145),
 }
 
-local START_TIME = os.clock()
+local bgTransparency = 0.05
+local launcherEnabled = true
+local opened = false
+local busy = false
+local sessionStart = os.clock()
 
---========================================================
--- HELPERS
---========================================================
-
-local function corner(parent, radius)
+local function round(obj, px)
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius)
-	c.Parent = parent
-	return c
+	c.CornerRadius = UDim.new(0, px)
+	c.Parent = obj
 end
 
-local function stroke(parent, color, thickness)
+local function stroke(obj)
 	local s = Instance.new("UIStroke")
-	s.Color = color
-	s.Thickness = thickness or 1
-	s.Transparency = 0.12
-	s.Parent = parent
-	return s
+	s.Color = THEME.BORDER
+	s.Thickness = 1
+	s.Transparency = 0.25
+	s.Parent = obj
 end
 
 local function text(parent, value, size, font)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
 	t.Text = value
-	t.TextColor3 = Theme.Text
+	t.TextColor3 = THEME.WHITE
 	t.TextSize = size
-	t.Font = font or Enum.Font.Gotham
+	t.Font = font or Enum.Font.GothamBold
 	t.TextXAlignment = Enum.TextXAlignment.Left
 	t.Parent = parent
 	return t
 end
 
-local function button(parent, value, size, font)
+local function button(parent, value)
 	local b = Instance.new("TextButton")
-	b.BackgroundColor3 = Theme.Button
-	b.Text = value
-	b.TextColor3 = Theme.Text
-	b.TextSize = size
-	b.Font = font or Enum.Font.GothamMedium
+	b.BackgroundColor3 = THEME.BUTTON
 	b.BorderSizePixel = 0
+	b.Text = value
+	b.TextColor3 = THEME.WHITE
+	b.TextSize = 12
+	b.Font = Enum.Font.GothamBold
 	b.AutoButtonColor = false
 	b.Parent = parent
-	corner(b, 8)
-	stroke(b, Theme.Border, 1)
+	round(b, 8)
+	stroke(b)
 
 	b.MouseEnter:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.12), {
-			BackgroundColor3 = Theme.ButtonHover
-		}):Play()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = THEME.HOVER}):Play()
 	end)
 
 	b.MouseLeave:Connect(function()
-		TweenService:Create(b, TweenInfo.new(.12), {
-			BackgroundColor3 = Theme.Button
-		}):Play()
+		TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = THEME.BUTTON}):Play()
 	end)
 
 	return b
 end
 
-local function clickSound()
+local function click()
 	local s = Instance.new("Sound")
 	s.SoundId = "rbxassetid://12221967"
 	s.Volume = 1
 	s.Parent = SoundService
 	s:Play()
-	s.Ended:Connect(function()
-		s:Destroy()
-	end)
+	s.Ended:Connect(function() s:Destroy() end)
 end
 
-local function formatTime(seconds)
-	seconds = math.max(0, math.floor(seconds))
-
-	local hours = math.floor(seconds / 3600)
-	local minutes = math.floor((seconds % 3600) / 60)
-	local secs = seconds % 60
-
-	if hours > 0 then
-		return string.format("%02dh %02dm %02ds", hours, minutes, secs)
+local function timeString(seconds)
+	seconds = math.floor(seconds)
+	local h = math.floor(seconds / 3600)
+	local m = math.floor((seconds % 3600) / 60)
+	local s = seconds % 60
+	if h > 0 then
+		return string.format("%02dh %02dm %02ds", h, m, s)
 	end
-
-	return string.format("%02dm %02ds", minutes, secs)
+	return string.format("%02dm %02ds", m, s)
 end
 
---========================================================
--- ROOT
---========================================================
+-- Root
+local gui = Instance.new("ScreenGui")
+gui.Name = "YesHub"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = playerGui
 
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "YesHub"
-Gui.ResetOnSpawn = false
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-Gui.Parent = PlayerGui
+-- Launcher
+local launcher = Instance.new("TextButton")
+launcher.Name = "YLauncher"
+launcher.Size = UDim2.fromOffset(46, 46)
+launcher.Position = UDim2.new(0, 18, .5, -23)
+launcher.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+launcher.BorderSizePixel = 0
+launcher.Text = "Y"
+launcher.TextColor3 = THEME.WHITE
+launcher.TextSize = 24
+launcher.Font = Enum.Font.GothamBlack
+launcher.AutoButtonColor = false
+launcher.ZIndex = 100
+launcher.Parent = gui
+round(launcher, 12)
+stroke(launcher)
 
---========================================================
--- LAUNCHER
---========================================================
+-- One large black box
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.AnchorPoint = Vector2.new(.5, .5)
+main.Position = UDim2.fromScale(.5, .5)
+main.Size = UDim2.fromOffset(720, 430)
+main.BackgroundColor3 = THEME.BG
+main.BackgroundTransparency = bgTransparency
+main.BorderSizePixel = 0
+main.Visible = false
+main.ClipsDescendants = true
+main.Parent = gui
+round(main, 14)
+stroke(main)
 
-local Launcher = Instance.new("TextButton")
-Launcher.Size = UDim2.fromOffset(46, 46)
-Launcher.Position = UDim2.new(0, 18, .5, -23)
-Launcher.BackgroundColor3 = Color3.fromRGB(7, 7, 7)
-Launcher.Text = "Y"
-Launcher.TextColor3 = Theme.Text
-Launcher.TextSize = 24
-Launcher.Font = Enum.Font.GothamBlack
-Launcher.BorderSizePixel = 0
-Launcher.AutoButtonColor = false
-Launcher.Parent = Gui
-
-corner(Launcher, 12)
-stroke(Launcher, Theme.Border, 1)
-
---========================================================
--- MAIN
---========================================================
-
-local Main = Instance.new("Frame")
-Main.AnchorPoint = Vector2.new(.5, .5)
-Main.Position = UDim2.new(.5, 0, .5, 0)
-Main.Size = UDim2.fromOffset(720, 430)
-Main.BackgroundColor3 = Theme.Background
-Main.BorderSizePixel = 0
-Main.Parent = Gui
-
-corner(Main, 15)
-stroke(Main, Theme.Border, 1)
-
---========================================================
--- HEADER
---========================================================
-
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, -20, 0, 66)
-Header.Position = UDim2.fromOffset(10, 10)
-Header.BackgroundColor3 = Theme.Surface
-Header.BorderSizePixel = 0
-Header.Parent = Main
-
-corner(Header, 11)
-stroke(Header, Theme.Border, 1)
-
-local Avatar = Instance.new("ImageLabel")
-Avatar.Size = UDim2.fromOffset(44, 44)
-Avatar.Position = UDim2.fromOffset(11, 11)
-Avatar.BackgroundColor3 = Theme.Surface2
-Avatar.BorderSizePixel = 0
-Avatar.Parent = Header
-
-corner(Avatar, 10)
-stroke(Avatar, Theme.Border, 1)
+-- Header
+local avatar = Instance.new("ImageLabel")
+avatar.Size = UDim2.fromOffset(46, 46)
+avatar.Position = UDim2.fromOffset(18, 15)
+avatar.BackgroundColor3 = THEME.PANEL
+avatar.BorderSizePixel = 0
+avatar.Parent = main
+round(avatar, 12)
 
 task.spawn(function()
 	local ok, image = pcall(function()
 		return Players:GetUserThumbnailAsync(
-			Player.UserId,
+			player.UserId,
 			Enum.ThumbnailType.HeadShot,
 			Enum.ThumbnailSize.Size100x100
 		)
 	end)
-
-	if ok then
-		Avatar.Image = image
-	end
+	if ok then avatar.Image = image end
 end)
 
-local HubTitle = text(Header, "Yes-Hub", 20, Enum.Font.GothamBold)
-HubTitle.Size = UDim2.new(0, 230, 0, 27)
-HubTitle.Position = UDim2.fromOffset(67, 7)
-
-local HubAuthor = text(Header, "by yes.dev", 11, Enum.Font.GothamMedium)
-HubAuthor.Size = UDim2.new(0, 230, 0, 18)
-HubAuthor.Position = UDim2.fromOffset(68, 34)
-HubAuthor.TextColor3 = Theme.Muted
-
-local PlayerName = text(Header, Player.DisplayName, 12, Enum.Font.GothamSemibold)
-PlayerName.Size = UDim2.new(0, 180, 0, 20)
-PlayerName.Position = UDim2.new(1, -200, 0, 13)
-PlayerName.TextXAlignment = Enum.TextXAlignment.Right
-
-local Username = text(Header, "@" .. Player.Name, 10, Enum.Font.Gotham)
-Username.Size = UDim2.new(0, 180, 0, 16)
-Username.Position = UDim2.new(1, -200, 0, 34)
-Username.TextXAlignment = Enum.TextXAlignment.Right
-Username.TextColor3 = Theme.Muted
-
---========================================================
--- BODY
---========================================================
-
-local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 145, 1, -86)
-Sidebar.Position = UDim2.fromOffset(10, 76)
-Sidebar.BackgroundColor3 = Theme.Surface
-Sidebar.BorderSizePixel = 0
-Sidebar.Parent = Main
-
-corner(Sidebar, 11)
-stroke(Sidebar, Theme.Border, 1)
-
-local SidebarTitle = text(Sidebar, "Navigation", 11, Enum.Font.GothamBold)
-SidebarTitle.Size = UDim2.new(1, -24, 0, 20)
-SidebarTitle.Position = UDim2.fromOffset(12, 12)
-SidebarTitle.TextColor3 = Theme.Muted
-
-local HomeButton = button(Sidebar, "⌂   Home", 12, Enum.Font.GothamSemibold)
-HomeButton.Size = UDim2.new(1, -20, 0, 36)
-HomeButton.Position = UDim2.fromOffset(10, 40)
-HomeButton.BackgroundColor3 = Theme.ButtonHover
-HomeButton.TextXAlignment = Enum.TextXAlignment.Left
-
-local ModulesButton = button(Sidebar, "▦   Modules", 12, Enum.Font.GothamSemibold)
-ModulesButton.Size = UDim2.new(1, -20, 0, 36)
-ModulesButton.Position = UDim2.fromOffset(10, 84)
-ModulesButton.TextXAlignment = Enum.TextXAlignment.Left
-
-local SettingsButton = button(Sidebar, "⚙   Settings", 12, Enum.Font.GothamSemibold)
-SettingsButton.Size = UDim2.new(1, -20, 0, 36)
-SettingsButton.Position = UDim2.fromOffset(10, 128)
-SettingsButton.TextXAlignment = Enum.TextXAlignment.Left
-
---========================================================
--- PAGE AREA
---========================================================
-
-local Page = Instance.new("Frame")
-Page.Size = UDim2.new(1, -165, 1, -86)
-Page.Position = UDim2.fromOffset(155, 76)
-Page.BackgroundColor3 = Theme.Surface
-Page.BorderSizePixel = 0
-Page.Parent = Main
-
-corner(Page, 11)
-stroke(Page, Theme.Border, 1)
-
---========================================================
--- HOME PAGE
---========================================================
-
-local HomePage = Instance.new("Frame")
-HomePage.Size = UDim2.fromScale(1, 1)
-HomePage.BackgroundTransparency = 1
-HomePage.Parent = Page
-
-local Welcome = text(HomePage, "Welcome back, " .. Player.DisplayName, 19, Enum.Font.GothamBold)
-Welcome.Size = UDim2.new(1, -30, 0, 28)
-Welcome.Position = UDim2.fromOffset(15, 14)
-
-local WelcomeSub = text(HomePage, "Your Yes-Hub dashboard", 11, Enum.Font.Gotham)
-WelcomeSub.Size = UDim2.new(1, -30, 0, 18)
-WelcomeSub.Position = UDim2.fromOffset(15, 40)
-WelcomeSub.TextColor3 = Theme.Muted
-
--- Player info card
-local InfoCard = Instance.new("Frame")
-InfoCard.Size = UDim2.new(1, -30, 0, 115)
-InfoCard.Position = UDim2.fromOffset(15, 70)
-InfoCard.BackgroundColor3 = Theme.Surface2
-InfoCard.BorderSizePixel = 0
-InfoCard.Parent = HomePage
-
-corner(InfoCard, 10)
-stroke(InfoCard, Theme.Border, 1)
-
-local InfoAvatar = Instance.new("ImageLabel")
-InfoAvatar.Size = UDim2.fromOffset(78, 78)
-InfoAvatar.Position = UDim2.fromOffset(14, 18)
-InfoAvatar.BackgroundColor3 = Theme.Panel
-InfoAvatar.BorderSizePixel = 0
-InfoAvatar.Image = Avatar.Image
-InfoAvatar.Parent = InfoCard
-
-corner(InfoAvatar, 12)
-stroke(InfoAvatar, Theme.Border, 1)
-
-local InfoName = text(InfoCard, Player.DisplayName, 16, Enum.Font.GothamBold)
-InfoName.Size = UDim2.new(0, 230, 0, 24)
-InfoName.Position = UDim2.fromOffset(108, 18)
-
-local InfoUser = text(InfoCard, "@" .. Player.Name, 10, Enum.Font.Gotham)
-InfoUser.Size = UDim2.new(0, 230, 0, 18)
-InfoUser.Position = UDim2.fromOffset(108, 42)
-InfoUser.TextColor3 = Theme.Muted
-
-local UserIdText = text(InfoCard, "User ID  " .. tostring(Player.UserId), 10, Enum.Font.GothamMedium)
-UserIdText.Size = UDim2.new(0, 230, 0, 18)
-UserIdText.Position = UDim2.fromOffset(108, 65)
-UserIdText.TextColor3 = Theme.Muted
-
--- Playtime card
-local PlaytimeCard = Instance.new("Frame")
-PlaytimeCard.Size = UDim2.new(0, 145, 0, 115)
-PlaytimeCard.Position = UDim2.new(1, -160, 0, 70)
-PlaytimeCard.BackgroundColor3 = Theme.Surface2
-PlaytimeCard.BorderSizePixel = 0
-PlaytimeCard.Parent = HomePage
-
-corner(PlaytimeCard, 10)
-stroke(PlaytimeCard, Theme.Border, 1)
-
-local PlaytimeTitle = text(PlaytimeCard, "PLAYTIME", 9, Enum.Font.GothamBold)
-PlaytimeTitle.Size = UDim2.new(1, -20, 0, 18)
-PlaytimeTitle.Position = UDim2.fromOffset(10, 13)
-PlaytimeTitle.TextColor3 = Theme.Muted
-
-local PlaytimeValue = text(PlaytimeCard, "00m 00s", 17, Enum.Font.GothamBold)
-PlaytimeValue.Size = UDim2.new(1, -20, 0, 28)
-PlaytimeValue.Position = UDim2.fromOffset(10, 39)
-
-local PlaytimeHint = text(PlaytimeCard, "This session", 9, Enum.Font.Gotham)
-PlaytimeHint.Size = UDim2.new(1, -20, 0, 18)
-PlaytimeHint.Position = UDim2.fromOffset(10, 72)
-PlaytimeHint.TextColor3 = Theme.Muted
-
--- Status card
-local StatusCard = Instance.new("Frame")
-StatusCard.Size = UDim2.new(1, -30, 0, 78)
-StatusCard.Position = UDim2.fromOffset(15, 197)
-StatusCard.BackgroundColor3 = Theme.Surface2
-StatusCard.BorderSizePixel = 0
-StatusCard.Parent = HomePage
-
-corner(StatusCard, 10)
-stroke(StatusCard, Theme.Border, 1)
-
-local StatusDot = Instance.new("Frame")
-StatusDot.Size = UDim2.fromOffset(9, 9)
-StatusDot.Position = UDim2.fromOffset(14, 19)
-StatusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-StatusDot.BorderSizePixel = 0
-StatusDot.Parent = StatusCard
-corner(StatusDot, 9)
-
-local StatusTitle = text(StatusCard, "Session Active", 12, Enum.Font.GothamSemibold)
-StatusTitle.Size = UDim2.new(1, -40, 0, 20)
-StatusTitle.Position = UDim2.fromOffset(31, 12)
-
-local StatusDescription = text(StatusCard, "Yes-Hub is running normally.", 10, Enum.Font.Gotham)
-StatusDescription.Size = UDim2.new(1, -40, 0, 18)
-StatusDescription.Position = UDim2.fromOffset(31, 34)
-StatusDescription.TextColor3 = Theme.Muted
-
---========================================================
--- MODULES PAGE
---========================================================
-
-local ModulesPage = Instance.new("Frame")
-ModulesPage.Size = UDim2.fromScale(1, 1)
-ModulesPage.BackgroundTransparency = 1
-ModulesPage.Visible = false
-ModulesPage.Parent = Page
-
-local ModuleTitle = text(ModulesPage, "Modules", 19, Enum.Font.GothamBold)
-ModuleTitle.Size = UDim2.new(1, -30, 0, 28)
-ModuleTitle.Position = UDim2.fromOffset(15, 14)
-
-local ModuleSub = text(ModulesPage, "Select a module to view its controls.", 11, Enum.Font.Gotham)
-ModuleSub.Size = UDim2.new(1, -30, 0, 18)
-ModuleSub.Position = UDim2.fromOffset(15, 41)
-ModuleSub.TextColor3 = Theme.Muted
-
-local ModuleList = Instance.new("ScrollingFrame")
-ModuleList.Size = UDim2.new(1, -30, 1, -72)
-ModuleList.Position = UDim2.fromOffset(15, 66)
-ModuleList.BackgroundTransparency = 1
-ModuleList.BorderSizePixel = 0
-ModuleList.ScrollBarThickness = 3
-ModuleList.ScrollBarImageColor3 = Theme.Border
-ModuleList.Parent = ModulesPage
-
-local ModuleLayout = Instance.new("UIListLayout")
-ModuleLayout.Padding = UDim.new(0, 7)
-ModuleLayout.Parent = ModuleList
-
-for i = 1, 12 do
-	local ModuleButton = button(
-		ModuleList,
-		i <= 7 and ("Module " .. i) or "No Module",
-		11,
-		Enum.Font.GothamSemibold
-	)
-
-	ModuleButton.Size = UDim2.new(1, -5, 0, 38)
-	ModuleButton.LayoutOrder = i
-	ModuleButton.TextXAlignment = Enum.TextXAlignment.Left
-
-	if i > 7 then
-		ModuleButton.TextColor3 = Theme.Dim
-	end
-end
-
-ModuleLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	ModuleList.CanvasSize = UDim2.new(0, 0, 0, ModuleLayout.AbsoluteContentSize.Y + 8)
-end)
-
---========================================================
--- MODULE DETAIL AREA
---========================================================
-
-local Detail = Instance.new("Frame")
-Detail.Size = UDim2.new(0, 190, 1, -10)
-Detail.Position = UDim2.new(1, -200, 0, 5)
-Detail.BackgroundColor3 = Theme.Surface2
-Detail.BorderSizePixel = 0
-Detail.Parent = ModulesPage
-
-corner(Detail, 10)
-stroke(Detail, Theme.Border, 1)
-
-local DetailTitle = text(Detail, "Module UI", 14, Enum.Font.GothamBold)
-DetailTitle.Size = UDim2.new(1, -24, 0, 24)
-DetailTitle.Position = UDim2.fromOffset(12, 12)
-
-local DetailSub = text(Detail, "Choose a module from the list.", 10, Enum.Font.Gotham)
-DetailSub.Size = UDim2.new(1, -24, 0, 38)
-DetailSub.Position = UDim2.fromOffset(12, 39)
-DetailSub.TextColor3 = Theme.Muted
-DetailSub.TextWrapped = true
-
---========================================================
--- SETTINGS PAGE
---========================================================
-
-local SettingsPage = Instance.new("Frame")
-SettingsPage.Size = UDim2.fromScale(1, 1)
-SettingsPage.BackgroundTransparency = 1
-SettingsPage.Visible = false
-SettingsPage.Parent = Page
-
-local SettingsTitle = text(SettingsPage, "Settings", 19, Enum.Font.GothamBold)
-SettingsTitle.Size = UDim2.new(1, -30, 0, 28)
-SettingsTitle.Position = UDim2.fromOffset(15, 14)
-
-local SettingsSub = text(SettingsPage, "Customize your Yes-Hub experience.", 11, Enum.Font.Gotham)
-SettingsSub.Size = UDim2.new(1, -30, 0, 18)
-SettingsSub.Position = UDim2.fromOffset(15, 41)
-SettingsSub.TextColor3 = Theme.Muted
-
-local BackgroundSetting = button(SettingsPage, "UI Background  •  Dark", 11, Enum.Font.GothamSemibold)
-BackgroundSetting.Size = UDim2.new(1, -30, 0, 42)
-BackgroundSetting.Position = UDim2.fromOffset(15, 72)
-BackgroundSetting.TextXAlignment = Enum.TextXAlignment.Left
-
-local LauncherSetting = button(SettingsPage, "Launcher Button  •  Visible", 11, Enum.Font.GothamSemibold)
-LauncherSetting.Size = UDim2.new(1, -30, 0, 42)
-LauncherSetting.Position = UDim2.fromOffset(15, 121)
-LauncherSetting.TextXAlignment = Enum.TextXAlignment.Left
-
-local bgModes = {
-	{"Dark", Color3.fromRGB(9,9,9)},
-	{"Charcoal", Color3.fromRGB(20,20,20)},
-	{"Gray", Color3.fromRGB(30,30,30)},
-}
-
-local bgIndex = 1
-
-BackgroundSetting.MouseButton1Click:Connect(function()
-	bgIndex = bgIndex % #bgModes + 1
-	local name, color = table.unpack(bgModes[bgIndex])
-
-	Theme.Background = color
-	Main.BackgroundColor3 = color
-	BackgroundSetting.Text = "UI Background  •  " .. name
-
-	clickSound()
-end)
-
-local launcherVisible = true
-
-LauncherSetting.MouseButton1Click:Connect(function()
-	launcherVisible = not launcherVisible
-	Launcher.Visible = launcherVisible
-
-	LauncherSetting.Text = launcherVisible
-		and "Launcher Button  •  Visible"
-		or "Launcher Button  •  Hidden"
-
-	clickSound()
-end)
-
---========================================================
--- NAVIGATION
---========================================================
-
-local function showPage(page)
-	HomePage.Visible = page == HomePage
-	ModulesPage.Visible = page == ModulesPage
-	SettingsPage.Visible = page == SettingsPage
-end
-
-HomeButton.MouseButton1Click:Connect(function()
-	clickSound()
-	showPage(HomePage)
-end)
-
-ModulesButton.MouseButton1Click:Connect(function()
-	clickSound()
-	showPage(ModulesPage)
-end)
-
-SettingsButton.MouseButton1Click:Connect(function()
-	clickSound()
-	showPage(SettingsPage)
-end)
-
---========================================================
--- PLAYTIME
---========================================================
+local title = text(main, "Yes-Hub", 20)
+title.Size = UDim2.fromOffset(250, 26)
+title.Position = UDim2.fromOffset(76, 13)
+
+local author = text(main, "by yes.dev", 11)
+author.Size = UDim2.fromOffset(250, 18)
+author.Position = UDim2.fromOffset(77, 38)
+author.TextColor3 = THEME.MUTED
+
+local display = text(main, player.DisplayName, 12)
+display.Size = UDim2.fromOffset(190, 20)
+display.Position = UDim2.new(1, -210, 0, 15)
+display.TextXAlignment = Enum.TextXAlignment.Right
+
+local username = text(main, "@" .. player.Name, 10)
+username.Size = UDim2.fromOffset(190, 16)
+username.Position = UDim2.new(1, -210, 0, 38)
+username.TextXAlignment = Enum.TextXAlignment.Right
+username.TextColor3 = THEME.MUTED
+
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, -36, 0, 1)
+divider.Position = UDim2.fromOffset(18, 73)
+divider.BackgroundColor3 = THEME.BORDER
+divider.BackgroundTransparency = .35
+divider.BorderSizePixel = 0
+divider.Parent = main
+
+-- Navigation
+local nav = text(main, "Navigation", 10)
+nav.Size = UDim2.fromOffset(125, 18)
+nav.Position = UDim2.fromOffset(20, 88)
+nav.TextColor3 = THEME.MUTED
+
+local homeBtn = button(main, "Home")
+homeBtn.Size = UDim2.fromOffset(125, 36)
+homeBtn.Position = UDim2.fromOffset(18, 113)
+homeBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local modulesBtn = button(main, "Modules")
+modulesBtn.Size = UDim2.fromOffset(125, 36)
+modulesBtn.Position = UDim2.fromOffset(18, 155)
+modulesBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local settingsBtn = button(main, "Settings")
+settingsBtn.Size = UDim2.fromOffset(125, 36)
+settingsBtn.Position = UDim2.fromOffset(18, 197)
+settingsBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Page container
+local pages = Instance.new("Frame")
+pages.Size = UDim2.new(1, -174, 1, -94)
+pages.Position = UDim2.fromOffset(163, 84)
+pages.BackgroundTransparency = 1
+pages.Parent = main
+
+-- HOME
+local home = Instance.new("Frame")
+home.Size = UDim2.fromScale(1, 1)
+home.BackgroundTransparency = 1
+home.Parent = pages
+
+local welcome = text(home, "Welcome back, " .. player.DisplayName, 19)
+welcome.Size = UDim2.new(1, -10, 0, 28)
+welcome.Position = UDim2.fromOffset(4, 0)
+
+local sub = text(home, "Your Yes-Hub dashboard", 11)
+sub.Size = UDim2.new(1, -10, 0, 18)
+sub.Position = UDim2.fromOffset(4, 29)
+sub.TextColor3 = THEME.MUTED
+
+local playerCard = Instance.new("Frame")
+playerCard.Size = UDim2.new(1, -8, 0, 125)
+playerCard.Position = UDim2.fromOffset(4, 56)
+playerCard.BackgroundColor3 = THEME.PANEL
+playerCard.BackgroundTransparency = .12
+playerCard.BorderSizePixel = 0
+playerCard.Parent = home
+round(playerCard, 10)
+stroke(playerCard)
+
+local homeAvatar = Instance.new("ImageLabel")
+homeAvatar.Size = UDim2.fromOffset(82, 82)
+homeAvatar.Position = UDim2.fromOffset(15, 21)
+homeAvatar.BackgroundColor3 = THEME.BUTTON
+homeAvatar.BorderSizePixel = 0
+homeAvatar.Parent = playerCard
+round(homeAvatar, 12)
 
 task.spawn(function()
-	while Gui.Parent do
-		PlaytimeValue.Text = formatTime(os.clock() - START_TIME)
+	local ok, image = pcall(function()
+		return Players:GetUserThumbnailAsync(
+			player.UserId,
+			Enum.ThumbnailType.HeadShot,
+			Enum.ThumbnailSize.Size100x100
+		)
+	end)
+	if ok then
+		avatar.Image = image
+		homeAvatar.Image = image
+	end
+end)
+
+local homeName = text(playerCard, player.DisplayName, 17)
+homeName.Size = UDim2.fromOffset(250, 24)
+homeName.Position = UDim2.fromOffset(112, 18)
+
+local homeUser = text(playerCard, "@" .. player.Name, 10)
+homeUser.Size = UDim2.fromOffset(250, 18)
+homeUser.Position = UDim2.fromOffset(112, 44)
+homeUser.TextColor3 = THEME.MUTED
+
+local id = text(playerCard, "User ID  •  " .. player.UserId, 10)
+id.Size = UDim2.fromOffset(250, 18)
+id.Position = UDim2.fromOffset(112, 69)
+id.TextColor3 = THEME.MUTED
+
+local playCard = Instance.new("Frame")
+playCard.Size = UDim2.fromOffset(142, 125)
+playCard.Position = UDim2.new(1, -150, 0, 56)
+playCard.BackgroundColor3 = THEME.PANEL
+playCard.BackgroundTransparency = .12
+playCard.BorderSizePixel = 0
+playCard.Parent = home
+round(playCard, 10)
+stroke(playCard)
+
+local playLabel = text(playCard, "PLAYTIME", 9)
+playLabel.Size = UDim2.new(1, -20, 0, 18)
+playLabel.Position = UDim2.fromOffset(10, 15)
+playLabel.TextColor3 = THEME.MUTED
+
+local playValue = text(playCard, "00m 00s", 17)
+playValue.Size = UDim2.new(1, -20, 0, 28)
+playValue.Position = UDim2.fromOffset(10, 43)
+
+local playHint = text(playCard, "This session", 9)
+playHint.Size = UDim2.new(1, -20, 0, 18)
+playHint.Position = UDim2.fromOffset(10, 77)
+playHint.TextColor3 = THEME.MUTED
+
+local status = Instance.new("Frame")
+status.Size = UDim2.new(1, -8, 0, 70)
+status.Position = UDim2.fromOffset(4, 192)
+status.BackgroundColor3 = THEME.PANEL
+status.BackgroundTransparency = .12
+status.BorderSizePixel = 0
+status.Parent = home
+round(status, 10)
+stroke(status)
+
+local dot = Instance.new("Frame")
+dot.Size = UDim2.fromOffset(8, 8)
+dot.Position = UDim2.fromOffset(15, 18)
+dot.BackgroundColor3 = THEME.WHITE
+dot.BorderSizePixel = 0
+dot.Parent = status
+round(dot, 8)
+
+local statusTitle = text(status, "Session Active", 12)
+statusTitle.Size = UDim2.new(1, -42, 0, 20)
+statusTitle.Position = UDim2.fromOffset(30, 10)
+
+local statusText = text(status, "Yes-Hub is running normally.", 10)
+statusText.Size = UDim2.new(1, -42, 0, 18)
+statusText.Position = UDim2.fromOffset(30, 33)
+statusText.TextColor3 = THEME.MUTED
+
+-- MODULES
+local modules = Instance.new("Frame")
+modules.Size = UDim2.fromScale(1, 1)
+modules.BackgroundTransparency = 1
+modules.Visible = false
+modules.Parent = pages
+
+local modulesTitle = text(modules, "Modules", 19)
+modulesTitle.Size = UDim2.new(1, -205, 0, 28)
+modulesTitle.Position = UDim2.fromOffset(4, 0)
+
+local modulesSub = text(modules, "Choose a module.", 11)
+modulesSub.Size = UDim2.new(1, -205, 0, 18)
+modulesSub.Position = UDim2.fromOffset(4, 29)
+modulesSub.TextColor3 = THEME.MUTED
+
+local moduleList = Instance.new("ScrollingFrame")
+moduleList.Size = UDim2.fromOffset(150, 285)
+moduleList.Position = UDim2.fromOffset(4, 57)
+moduleList.BackgroundTransparency = 1
+moduleList.BorderSizePixel = 0
+moduleList.ScrollBarThickness = 2
+moduleList.Parent = modules
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 6)
+layout.Parent = moduleList
+
+local moduleUI = Instance.new("Frame")
+moduleUI.Size = UDim2.new(1, -174, 1, -60)
+moduleUI.Position = UDim2.fromOffset(170, 57)
+moduleUI.BackgroundColor3 = THEME.PANEL
+moduleUI.BackgroundTransparency = .12
+moduleUI.BorderSizePixel = 0
+moduleUI.Parent = modules
+round(moduleUI, 10)
+stroke(moduleUI)
+
+local moduleTitle = text(moduleUI, "Module UI", 14)
+moduleTitle.Size = UDim2.new(1, -24, 0, 24)
+moduleTitle.Position = UDim2.fromOffset(12, 12)
+
+local moduleInfo = text(moduleUI, "Select a module from the list.", 10)
+moduleInfo.Size = UDim2.new(1, -24, 0, 45)
+moduleInfo.Position = UDim2.fromOffset(12, 40)
+moduleInfo.TextColor3 = THEME.MUTED
+moduleInfo.TextWrapped = true
+
+for i = 1, 12 do
+	local moduleName = i <= 7 and ("Module " .. i) or "No Module"
+	local b = button(moduleList, moduleName)
+	b.Size = UDim2.new(1, -5, 0, 34)
+	b.Text = moduleName
+	b.TextXAlignment = Enum.TextXAlignment.Left
+
+	if i > 7 then
+		b.TextColor3 = THEME.MUTED
+	end
+
+	b.MouseButton1Click:Connect(function()
+		click()
+		if i <= 7 then
+			moduleTitle.Text = moduleName
+			moduleInfo.Text = "Controls for " .. moduleName .. " will appear here."
+		end
+	end)
+end
+
+local function updateCanvas()
+	moduleList.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 5)
+end
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+updateCanvas()
+
+-- SETTINGS
+local settings = Instance.new("Frame")
+settings.Size = UDim2.fromScale(1, 1)
+settings.BackgroundTransparency = 1
+settings.Visible = false
+settings.Parent = pages
+
+local settingsTitle = text(settings, "Settings", 19)
+settingsTitle.Size = UDim2.new(1, -10, 0, 28)
+settingsTitle.Position = UDim2.fromOffset(4, 0)
+
+local settingsSub = text(settings, "Customize the appearance of Yes-Hub.", 11)
+settingsSub.Size = UDim2.new(1, -10, 0, 18)
+settingsSub.Position = UDim2.fromOffset(4, 29)
+settingsSub.TextColor3 = THEME.MUTED
+
+local bgBtn = button(settings, "Background  •  Black")
+bgBtn.Size = UDim2.new(1, -8, 0, 40)
+bgBtn.Position = UDim2.fromOffset(4, 58)
+bgBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local opacityBtn = button(settings, "Background opacity  •  95%")
+opacityBtn.Size = UDim2.new(1, -8, 0, 40)
+opacityBtn.Position = UDim2.fromOffset(4, 106)
+opacityBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local launcherBtn = button(settings, "Launcher button  •  Visible")
+launcherBtn.Size = UDim2.new(1, -8, 0, 40)
+launcherBtn.Position = UDim2.fromOffset(4, 154)
+launcherBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local colors = {
+	{"Black", Color3.fromRGB(8,8,8)},
+	{"Charcoal", Color3.fromRGB(18,18,18)},
+	{"Dark Gray", Color3.fromRGB(28,28,28)}
+}
+local colorIndex = 1
+
+bgBtn.MouseButton1Click:Connect(function()
+	colorIndex = colorIndex % #colors + 1
+	local name, color = colors[colorIndex]
+	main.BackgroundColor3 = color
+	bgBtn.Text = "Background  •  " .. name
+	click()
+end)
+
+local opacity = {
+	{.05, "95%"},
+	{.15, "85%"},
+	{.25, "75%"},
+	{.35, "65%"},
+	{.45, "55%"}
+}
+local opacityIndex = 1
+
+opacityBtn.MouseButton1Click:Connect(function()
+	opacityIndex = opacityIndex % #opacity + 1
+	local value, name = table.unpack(opacity[opacityIndex])
+	bgTransparency = value
+	main.BackgroundTransparency = value
+	opacityBtn.Text = "Background opacity  •  " .. name
+	click()
+end)
+
+launcherBtn.MouseButton1Click:Connect(function()
+	launcherEnabled = not launcherEnabled
+	launcher.Visible = launcherEnabled
+	launcherBtn.Text = launcherEnabled
+		and "Launcher button  •  Visible"
+		or "Launcher button  •  Hidden"
+	click()
+end)
+
+-- Navigation
+local function page(name)
+	home.Visible = name == "Home"
+	modules.Visible = name == "Modules"
+	settings.Visible = name == "Settings"
+
+	homeBtn.BackgroundColor3 = name == "Home" and THEME.HOVER or THEME.BUTTON
+	modulesBtn.BackgroundColor3 = name == "Modules" and THEME.HOVER or THEME.BUTTON
+	settingsBtn.BackgroundColor3 = name == "Settings" and THEME.HOVER or THEME.BUTTON
+end
+
+homeBtn.MouseButton1Click:Connect(function() click(); page("Home") end)
+modulesBtn.MouseButton1Click:Connect(function() click(); page("Modules") end)
+settingsBtn.MouseButton1Click:Connect(function() click(); page("Settings") end)
+
+-- Playtime
+task.spawn(function()
+	while gui.Parent do
+		playValue.Text = timeString(os.clock() - sessionStart)
 		task.wait(1)
 	end
 end)
 
---========================================================
--- DRAG WINDOW
---========================================================
-
+-- Drag main window from header only.
 local dragging = false
 local dragStart
-local startPosition
+local startPos
 
-Header.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
+main.InputBegan:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 
+	local target = input.Target
+	if target and target:IsA("TextButton") then return end
+
+	local y = input.Position.Y - main.AbsolutePosition.Y
+	if y <= 74 then
 		dragging = true
 		dragStart = input.Position
-		startPosition = Main.Position
-
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
+		startPos = main.Position
 	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
 	if not dragging then return end
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 
-	if input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch then
+	local delta = input.Position - dragStart
+	main.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+end)
 
-		local delta = input.Position - dragStart
-
-		Main.Position = UDim2.new(
-			startPosition.X.Scale,
-			startPosition.X.Offset + delta.X,
-			startPosition.Y.Scale,
-			startPosition.Y.Offset + delta.Y
-		)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
 	end
 end)
 
---========================================================
--- OPEN / CLOSE
---========================================================
+-- Open/close
+local function toggle()
+	if busy then return end
+	busy = true
+	opened = not opened
+	click()
 
-local opened = true
-local openSize = UDim2.fromOffset(720, 430)
+	if opened then
+		main.Visible = true
+		main.Size = UDim2.fromOffset(0, 0)
 
-local function setOpen(state)
-	if state == opened then return end
-	opened = state
-	clickSound()
-
-	if state then
-		Main.Visible = true
-		Main.Size = UDim2.fromOffset(0, 0)
-
-		TweenService:Create(
-			Main,
+		local tween = TweenService:Create(
+			main,
 			TweenInfo.new(.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-			{Size = openSize}
-		):Play()
+			{Size = UDim2.fromOffset(720, 430)}
+		)
+		tween:Play()
+		tween.Completed:Wait()
 	else
-		local t = TweenService:Create(
-			Main,
+		local tween = TweenService:Create(
+			main,
 			TweenInfo.new(.20, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
 			{Size = UDim2.fromOffset(0, 0)}
 		)
-
-		t:Play()
-		t.Completed:Connect(function()
-			if not opened then
-				Main.Visible = false
-			end
-		end)
+		tween:Play()
+		tween.Completed:Wait()
+		main.Visible = false
 	end
+
+	busy = false
 end
 
-Launcher.MouseButton1Click:Connect(function()
-	setOpen(not opened)
-end)
+launcher.MouseButton1Click:Connect(toggle)
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
-
 	if input.KeyCode == Enum.KeyCode.LeftControl then
-		setOpen(not opened)
+		toggle()
 	end
 end)
 
---========================================================
--- INITIAL OPEN ANIMATION
---========================================================
-
-Main.Visible = true
-Main.Size = UDim2.fromOffset(0, 0)
-
-task.delay(.05, function()
-	TweenService:Create(
-		Main,
-		TweenInfo.new(.30, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-		{Size = openSize}
-	):Play()
-end)
+launcher.Visible = launcherEnabled
+main.Visible = false
