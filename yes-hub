@@ -197,6 +197,7 @@ local ringNav = button(main, "Ring")
 ringNav.Size = UDim2.fromOffset(125, 36)
 ringNav.Position = UDim2.fromOffset(18, 113)
 ringNav.TextXAlignment = Enum.TextXAlignment.Center
+ringNav.BackgroundColor3 = THEME.HOVER
 
 -- Page container
 local pages = Instance.new("Frame")
@@ -346,7 +347,7 @@ local ringPage = Instance.new("Frame")
 ringPage.Size = UDim2.new(1, -174, 1, -94)
 ringPage.Position = UDim2.fromOffset(163, 84)
 ringPage.BackgroundTransparency = 1
-ringPage.Parent = pages
+ringPage.Parent = main
 
 local ringTitle = text(ringPage, "Ring", 19)
 ringTitle.Size = UDim2.new(1, -10, 0, 28)
@@ -358,7 +359,7 @@ ringSub.Position = UDim2.fromOffset(4, 29)
 ringSub.TextColor3 = THEME.MUTED
 
 local ringCard = Instance.new("Frame")
-ringCard.Size = UDim2.new(1, -8, 0, 220)
+ringCard.Size = UDim2.new(1, -8, 0, 235)
 ringCard.Position = UDim2.fromOffset(4, 58)
 ringCard.BackgroundColor3 = THEME.PANEL
 ringCard.BackgroundTransparency = .12
@@ -367,7 +368,16 @@ ringCard.Parent = ringPage
 round(ringCard, 10)
 stroke(ringCard)
 
-local function makeToggle(parent, name, y, initial)
+local ringCardTitle = text(ringCard, "Super Ring V5", 14)
+ringCardTitle.Size = UDim2.new(1, -24, 0, 24)
+ringCardTitle.Position = UDim2.fromOffset(12, 12)
+
+local ringCardSub = text(ringCard, "Clean controls", 10)
+ringCardSub.Size = UDim2.new(1, -24, 0, 18)
+ringCardSub.Position = UDim2.fromOffset(12, 37)
+ringCardSub.TextColor3 = THEME.MUTED
+
+local function makeRingToggle(parent, name, y, initial)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, -24, 0, 42)
 	row.Position = UDim2.fromOffset(12, y)
@@ -400,74 +410,106 @@ local function makeToggle(parent, name, y, initial)
 	round(knob, 10)
 
 	local state = initial
+
 	toggle.MouseButton1Click:Connect(function()
 		state = not state
-		TweenService:Create(toggle, TweenInfo.new(.16), {
+
+		TweenService:Create(toggle, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			BackgroundColor3 = state and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
 		}):Play()
-		TweenService:Create(knob, TweenInfo.new(.16), {
+
+		TweenService:Create(knob, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Position = state and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
 		}):Play()
+
 		click()
 	end)
 
-	return toggle
+	return {
+		toggle = toggle,
+		get = function() return state end
+	}
 end
 
-makeToggle(ringCard, "Ring Enabled", 14, false)
-makeToggle(ringCard, "Ring Visuals", 62, true)
-makeToggle(ringCard, "Notifications", 110, true)
+local ringEnabled = makeRingToggle(ringCard, "Ring Enabled", 64, false)
+local ringVisuals = makeRingToggle(ringCard, "Ring Visuals", 112, true)
 
-local ringInfo = text(ringPage, "Super Ring V5", 10)
-ringInfo.Size = UDim2.new(1, -10, 0, 18)
-ringInfo.Position = UDim2.fromOffset(4, 292)
-ringInfo.TextColor3 = THEME.MUTED
+-- Ring size: [ 50 ]  -
+--                  +
+-- Max: 500
+local sizeLabel = text(ringCard, "Ring Size", 11)
+sizeLabel.Size = UDim2.fromOffset(100, 26)
+sizeLabel.Position = UDim2.fromOffset(12, 166)
+sizeLabel.TextYAlignment = Enum.TextYAlignment.Center
 
--- SETTINGS
-local settings = Instance.new("Frame")
-settings.Size = UDim2.fromScale(1, 1)
-settings.BackgroundTransparency = 1
-settings.Visible = false
-settings.Parent = pages
+local sizeBox = Instance.new("TextBox")
+sizeBox.Size = UDim2.fromOffset(70, 30)
+sizeBox.Position = UDim2.new(1, -138, 0, 164)
+sizeBox.BackgroundColor3 = THEME.BUTTON
+sizeBox.BorderSizePixel = 0
+sizeBox.Text = "50"
+sizeBox.TextColor3 = THEME.WHITE
+sizeBox.TextSize = 12
+sizeBox.Font = Enum.Font.GothamBold
+sizeBox.ClearTextOnFocus = false
+sizeBox.TextXAlignment = Enum.TextXAlignment.Center
+sizeBox.Parent = ringCard
+round(sizeBox, 8)
+stroke(sizeBox)
 
-local settingsTitle = text(settings, "Settings", 19)
-settingsTitle.Size = UDim2.new(1, -10, 0, 28)
-settingsTitle.Position = UDim2.fromOffset(4, 0)
+local minus = button(ringCard, "−")
+minus.Size = UDim2.fromOffset(30, 30)
+minus.Position = UDim2.new(1, -100, 0, 164)
+minus.TextSize = 16
 
-local settingsSub = text(settings, "Customize the appearance of Yes-Hub.", 11)
-settingsSub.Size = UDim2.new(1, -10, 0, 18)
-settingsSub.Position = UDim2.fromOffset(4, 29)
-settingsSub.TextColor3 = THEME.MUTED
+local plus = button(ringCard, "+")
+plus.Size = UDim2.fromOffset(30, 30)
+plus.Position = UDim2.new(1, -28, 0, 164)
+plus.TextSize = 16
 
-local bgBtn = button(settings, "Background  •  Black")
-bgBtn.Size = UDim2.new(1, -8, 0, 40)
-bgBtn.Position = UDim2.fromOffset(4, 58)
-bgBtn.TextXAlignment = Enum.TextXAlignment.Left
+local ringSize = 50
 
-local opacityBtn = button(settings, "Background opacity  •  95%")
-opacityBtn.Size = UDim2.new(1, -8, 0, 40)
-opacityBtn.Position = UDim2.fromOffset(4, 106)
-opacityBtn.TextXAlignment = Enum.TextXAlignment.Left
+local function applyRingSize(value)
+	value = tonumber(value) or ringSize
+	value = math.clamp(math.floor(value + 0.5), 1, 500)
+	ringSize = value
+	sizeBox.Text = tostring(ringSize)
+end
 
-local launcherBtn = button(settings, "Launcher button  •  Visible")
-launcherBtn.Size = UDim2.new(1, -8, 0, 40)
-launcherBtn.Position = UDim2.fromOffset(4, 154)
-launcherBtn.TextXAlignment = Enum.TextXAlignment.Left
-
-local colors = {
-	{"Black", Color3.fromRGB(8,8,8)},
-	{"Charcoal", Color3.fromRGB(18,18,18)},
-	{"Dark Gray", Color3.fromRGB(28,28,28)}
-}
-local colorIndex = 1
-
-bgBtn.MouseButton1Click:Connect(function()
-	colorIndex = colorIndex % #colors + 1
-	local name, color = colors[colorIndex]
-	main.BackgroundColor3 = color
-	bgBtn.Text = "Background  •  " .. name
+minus.MouseButton1Click:Connect(function()
+	applyRingSize(ringSize - 10)
 	click()
 end)
+
+plus.MouseButton1Click:Connect(function()
+	applyRingSize(ringSize + 10)
+	click()
+end)
+
+sizeBox.FocusLost:Connect(function()
+	applyRingSize(sizeBox.Text)
+end)
+
+local maxText = text(ringCard, "Max 500", 9)
+maxText.Size = UDim2.fromOffset(100, 18)
+maxText.Position = UDim2.fromOffset(12, 197)
+maxText.TextColor3 = THEME.MUTED
+
+local ringStatus = text(ringPage, "Ring is currently disabled", 10)
+ringStatus.Size = UDim2.new(1, -10, 0, 18)
+ringStatus.Position = UDim2.fromOffset(4, 305)
+ringStatus.TextColor3 = THEME.MUTED
+
+ringEnabled.toggle.MouseButton1Click:Connect(function()
+	ringStatus.Text = ringEnabled.get() and "Ring is currently enabled" or "Ring is currently disabled"
+end)
+
+-- Settings shortcut
+local settingsShortcut = button(main, "Settings")
+settingsShortcut.Size = UDim2.fromOffset(78, 28)
+settingsShortcut.Position = UDim2.new(1, -96, 0, 48)
+settingsShortcut.TextSize = 10
+
 
 -- Compact draggable background-opacity slider.
 local opacityHolder = Instance.new("Frame")
