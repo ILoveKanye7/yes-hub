@@ -421,15 +421,9 @@ IncreaseRadius.MouseButton1Click:Connect(function()
     playSound("12221967")
 end)
 
--- Get player thumbnail
-local userId = Players:GetUserIdFromNameAsync("Robloxlukasgames")
-local thumbType = Enum.ThumbnailType.HeadShot
-local thumbSize = Enum.ThumbnailSize.Size420x420
-local content, isReady = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
-
+-- Startup notification
 StarterGui:SetCore("SendNotification", {
     Title = "Super Ring V5",
     Text = "enjoy",
-    Icon = content,
     Duration = 5
 })
