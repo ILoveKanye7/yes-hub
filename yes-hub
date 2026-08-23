@@ -124,7 +124,7 @@ launcher.Parent = gui
 round(launcher, 12)
 stroke(launcher)
 
--- One large black box
+-- Main window
 local main = Instance.new("Frame")
 main.Name = "Main"
 main.AnchorPoint = Vector2.new(.5, .5)
@@ -139,7 +139,7 @@ main.Parent = gui
 round(main, 14)
 stroke(main)
 
--- Header
+-- Header avatar
 local avatar = Instance.new("ImageLabel")
 avatar.Size = UDim2.fromOffset(46, 46)
 avatar.Position = UDim2.fromOffset(18, 15)
@@ -147,17 +147,6 @@ avatar.BackgroundColor3 = THEME.PANEL
 avatar.BorderSizePixel = 0
 avatar.Parent = main
 round(avatar, 12)
-
-task.spawn(function()
-	local ok, image = pcall(function()
-		return Players:GetUserThumbnailAsync(
-			player.UserId,
-			Enum.ThumbnailType.HeadShot,
-			Enum.ThumbnailSize.Size100x100
-		)
-	end)
-	if ok then avatar.Image = image end
-end)
 
 local title = text(main, "Yes-Hub", 20)
 title.Size = UDim2.fromOffset(250, 26)
@@ -187,17 +176,40 @@ divider.BackgroundTransparency = .35
 divider.BorderSizePixel = 0
 divider.Parent = main
 
--- Navigation
+-- Settings button in header
+local headerSettings = button(main, "Settings")
+headerSettings.Size = UDim2.fromOffset(76, 28)
+headerSettings.Position = UDim2.new(1, -94, 0, 48)
+headerSettings.TextSize = 10
+headerSettings.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Navigation sidebar labels
 local nav = text(main, "Features", 10)
 nav.Size = UDim2.fromOffset(125, 18)
 nav.Position = UDim2.fromOffset(20, 88)
 nav.TextColor3 = THEME.MUTED
 
+-- Nav buttons
 local ringNav = button(main, "Ring")
 ringNav.Size = UDim2.fromOffset(125, 36)
 ringNav.Position = UDim2.fromOffset(18, 113)
 ringNav.TextXAlignment = Enum.TextXAlignment.Center
 ringNav.BackgroundColor3 = THEME.HOVER
+
+local homeBtn = button(main, "Home")
+homeBtn.Size = UDim2.fromOffset(125, 36)
+homeBtn.Position = UDim2.fromOffset(18, 155)
+homeBtn.TextXAlignment = Enum.TextXAlignment.Center
+
+local modulesBtn = button(main, "Modules")
+modulesBtn.Size = UDim2.fromOffset(125, 36)
+modulesBtn.Position = UDim2.fromOffset(18, 197)
+modulesBtn.TextXAlignment = Enum.TextXAlignment.Center
+
+local settingsBtn = button(main, "Settings")
+settingsBtn.Size = UDim2.fromOffset(125, 36)
+settingsBtn.Position = UDim2.fromOffset(18, 239)
+settingsBtn.TextXAlignment = Enum.TextXAlignment.Center
 
 -- Page container
 local pages = Instance.new("Frame")
@@ -206,10 +218,11 @@ pages.Position = UDim2.fromOffset(163, 84)
 pages.BackgroundTransparency = 1
 pages.Parent = main
 
--- HOME
+-- HOME PAGE
 local home = Instance.new("Frame")
 home.Size = UDim2.fromScale(1, 1)
 home.BackgroundTransparency = 1
+home.Visible = true
 home.Parent = pages
 
 local welcome = text(home, "Welcome back, " .. player.DisplayName, 19)
@@ -222,7 +235,7 @@ sub.Position = UDim2.fromOffset(4, 29)
 sub.TextColor3 = THEME.MUTED
 
 local playerCard = Instance.new("Frame")
-playerCard.Size = UDim2.new(1, -8, 0, 125)
+playerCard.Size = UDim2.new(1, -158, 0, 125)
 playerCard.Position = UDim2.fromOffset(4, 56)
 playerCard.BackgroundColor3 = THEME.PANEL
 playerCard.BackgroundTransparency = .12
@@ -269,7 +282,7 @@ id.TextColor3 = THEME.MUTED
 
 local playCard = Instance.new("Frame")
 playCard.Size = UDim2.fromOffset(142, 125)
-playCard.Position = UDim2.new(1, -150, 0, 56)
+playCard.Position = UDim2.new(1, -4, 0, 56)
 playCard.BackgroundColor3 = THEME.PANEL
 playCard.BackgroundTransparency = .12
 playCard.BorderSizePixel = 0
@@ -325,29 +338,123 @@ iyButton.TextXAlignment = Enum.TextXAlignment.Center
 
 iyButton.MouseButton1Click:Connect(function()
 	click()
-	-- Remote loadstring execution is intentionally not embedded here.
-	-- For a game you own, connect this button to your own trusted ModuleScript
-	-- or explicitly approved local implementation.
 	statusText.Text = "Infinite Yield module is not configured."
 end)
 
-local headerSettings = button(main, "Settings")
-headerSettings.Size = UDim2.fromOffset(76, 28)
-headerSettings.Position = UDim2.new(1, -94, 0, 48)
-headerSettings.TextSize = 10
-headerSettings.TextXAlignment = Enum.TextXAlignment.Center
-headerSettings.MouseButton1Click:Connect(function()
-	click()
-	ringPage.Visible = false
-	settings.Visible = true
-end)
+-- MODULES PAGE
+local modules = Instance.new("Frame")
+modules.Size = UDim2.fromScale(1, 1)
+modules.BackgroundTransparency = 1
+modules.Visible = false
+modules.Parent = pages
 
--- DIRECT RING MODULE
+local modTitle = text(modules, "Modules", 19)
+modTitle.Size = UDim2.new(1, -10, 0, 28)
+modTitle.Position = UDim2.fromOffset(4, 0)
+
+local modSub = text(modules, "Installed feature modules", 11)
+modSub.Size = UDim2.new(1, -10, 0, 18)
+modSub.Position = UDim2.fromOffset(4, 29)
+modSub.TextColor3 = THEME.MUTED
+
+local modEmpty = text(modules, "No modules installed.", 11)
+modEmpty.Size = UDim2.new(1, -10, 0, 18)
+modEmpty.Position = UDim2.fromOffset(4, 60)
+modEmpty.TextColor3 = THEME.MUTED
+
+-- SETTINGS PAGE
+local settings = Instance.new("Frame")
+settings.Size = UDim2.fromScale(1, 1)
+settings.BackgroundTransparency = 1
+settings.Visible = false
+settings.Parent = pages
+
+local settingsTitle = text(settings, "Settings", 19)
+settingsTitle.Size = UDim2.new(1, -10, 0, 28)
+settingsTitle.Position = UDim2.fromOffset(4, 0)
+
+local settingsSub = text(settings, "Hub configuration", 11)
+settingsSub.Size = UDim2.new(1, -10, 0, 18)
+settingsSub.Position = UDim2.fromOffset(4, 29)
+settingsSub.TextColor3 = THEME.MUTED
+
+-- Opacity slider
+local opacityHolder = Instance.new("Frame")
+opacityHolder.Size = UDim2.new(1, -8, 0, 48)
+opacityHolder.Position = UDim2.fromOffset(4, 58)
+opacityHolder.BackgroundColor3 = THEME.BUTTON
+opacityHolder.BorderSizePixel = 0
+opacityHolder.Parent = settings
+round(opacityHolder, 8)
+stroke(opacityHolder)
+
+local opacityTitle = text(opacityHolder, "Background opacity", 11)
+opacityTitle.Size = UDim2.fromOffset(150, 20)
+opacityTitle.Position = UDim2.fromOffset(12, 6)
+
+local opacityValue = text(opacityHolder, "95%", 11)
+opacityValue.Size = UDim2.fromOffset(50, 20)
+opacityValue.Position = UDim2.new(1, -62, 0, 6)
+opacityValue.TextXAlignment = Enum.TextXAlignment.Right
+
+local track = Instance.new("Frame")
+track.Size = UDim2.new(1, -24, 0, 5)
+track.Position = UDim2.fromOffset(12, 34)
+track.BackgroundColor3 = THEME.BORDER
+track.BorderSizePixel = 0
+track.Active = true
+track.Parent = opacityHolder
+round(track, 5)
+
+local fill = Instance.new("Frame")
+fill.Size = UDim2.fromScale(.95, 1)
+fill.BackgroundColor3 = THEME.WHITE
+fill.BorderSizePixel = 0
+fill.Active = true
+fill.Parent = track
+round(fill, 5)
+
+local sliderKnob = Instance.new("Frame")
+sliderKnob.Size = UDim2.fromOffset(14, 14)
+sliderKnob.AnchorPoint = Vector2.new(.5, .5)
+sliderKnob.Position = UDim2.new(.95, 0, .5, 0)
+sliderKnob.BackgroundColor3 = THEME.WHITE
+sliderKnob.BorderSizePixel = 0
+sliderKnob.Active = true
+sliderKnob.Parent = track
+round(sliderKnob, 8)
+
+local opacityDragging = false
+
+local function setOpacityFromX(x)
+	local left = track.AbsolutePosition.X
+	local width = track.AbsoluteSize.X
+	local ratio = math.clamp((x - left) / width, 0, 1)
+	ratio = math.floor(ratio * 10 + .5) / 10
+	local percent = math.floor(ratio * 100 + .5)
+	bgTransparency = 1 - ratio
+	main.BackgroundTransparency = bgTransparency
+	fill.Size = UDim2.fromScale(ratio, 1)
+	sliderKnob.Position = UDim2.new(ratio, 0, .5, 0)
+	opacityValue.Text = tostring(percent) .. "%"
+end
+
+local function beginOpacityDrag(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	opacityDragging = true
+	setOpacityFromX(input.Position.X)
+end
+
+track.InputBegan:Connect(beginOpacityDrag)
+fill.InputBegan:Connect(beginOpacityDrag)
+sliderKnob.InputBegan:Connect(beginOpacityDrag)
+
+-- RING PAGE
 local ringPage = Instance.new("Frame")
-ringPage.Size = UDim2.new(1, -174, 1, -94)
-ringPage.Position = UDim2.fromOffset(163, 84)
+ringPage.Size = UDim2.fromScale(1, 1)
 ringPage.BackgroundTransparency = 1
-ringPage.Parent = main
+ringPage.Visible = false
+ringPage.Parent = pages
 
 local ringTitle = text(ringPage, "Ring", 19)
 ringTitle.Size = UDim2.new(1, -10, 0, 28)
@@ -413,15 +520,12 @@ local function makeRingToggle(parent, name, y, initial)
 
 	toggle.MouseButton1Click:Connect(function()
 		state = not state
-
 		TweenService:Create(toggle, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			BackgroundColor3 = state and Color3.fromRGB(40,175,75) or Color3.fromRGB(175,45,45)
 		}):Play()
-
 		TweenService:Create(knob, TweenInfo.new(.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Position = state and UDim2.new(1,-23,.5,-10) or UDim2.fromOffset(3,3)
 		}):Play()
-
 		click()
 	end)
 
@@ -434,9 +538,6 @@ end
 local ringEnabled = makeRingToggle(ringCard, "Ring Enabled", 64, false)
 local ringVisuals = makeRingToggle(ringCard, "Ring Visuals", 112, true)
 
--- Ring size: [ 50 ]  -
---                  +
--- Max: 500
 local sizeLabel = text(ringCard, "Ring Size", 11)
 sizeLabel.Size = UDim2.fromOffset(100, 26)
 sizeLabel.Position = UDim2.fromOffset(12, 166)
@@ -476,19 +577,9 @@ local function applyRingSize(value)
 	sizeBox.Text = tostring(ringSize)
 end
 
-minus.MouseButton1Click:Connect(function()
-	applyRingSize(ringSize - 10)
-	click()
-end)
-
-plus.MouseButton1Click:Connect(function()
-	applyRingSize(ringSize + 10)
-	click()
-end)
-
-sizeBox.FocusLost:Connect(function()
-	applyRingSize(sizeBox.Text)
-end)
+minus.MouseButton1Click:Connect(function() applyRingSize(ringSize - 10) click() end)
+plus.MouseButton1Click:Connect(function() applyRingSize(ringSize + 10) click() end)
+sizeBox.FocusLost:Connect(function() applyRingSize(sizeBox.Text) end)
 
 local maxText = text(ringCard, "Max 500", 9)
 maxText.Size = UDim2.fromOffset(100, 18)
@@ -504,113 +595,33 @@ ringEnabled.toggle.MouseButton1Click:Connect(function()
 	ringStatus.Text = ringEnabled.get() and "Ring is currently enabled" or "Ring is currently disabled"
 end)
 
--- Settings shortcut
-local settingsShortcut = button(main, "Settings")
-settingsShortcut.Size = UDim2.fromOffset(78, 28)
-settingsShortcut.Position = UDim2.new(1, -96, 0, 48)
-settingsShortcut.TextSize = 10
-
-
--- Compact draggable background-opacity slider.
-local opacityHolder = Instance.new("Frame")
-opacityHolder.Size = UDim2.new(1, -8, 0, 48)
-opacityHolder.Position = UDim2.fromOffset(4, 106)
-opacityHolder.BackgroundColor3 = THEME.BUTTON
-opacityHolder.BorderSizePixel = 0
-opacityHolder.Parent = settings
-round(opacityHolder, 8)
-stroke(opacityHolder)
-
-local opacityTitle = text(opacityHolder, "Background opacity", 11)
-opacityTitle.Size = UDim2.fromOffset(150, 20)
-opacityTitle.Position = UDim2.fromOffset(12, 6)
-
-local opacityValue = text(opacityHolder, "95%", 11)
-opacityValue.Size = UDim2.fromOffset(50, 20)
-opacityValue.Position = UDim2.new(1, -62, 0, 6)
-opacityValue.TextXAlignment = Enum.TextXAlignment.Right
-
-local track = Instance.new("Frame")
-track.Size = UDim2.new(1, -24, 0, 5)
-track.Position = UDim2.fromOffset(12, 32)
-track.BackgroundColor3 = THEME.BORDER
-track.BorderSizePixel = 0
-track.Active = true
-track.Parent = opacityHolder
-round(track, 5)
-
-local fill = Instance.new("Frame")
-fill.Size = UDim2.fromScale(.95, 1)
-fill.BackgroundColor3 = THEME.WHITE
-fill.BorderSizePixel = 0
-fill.Active = true
-fill.Parent = track
-round(fill, 5)
-
-local knob = Instance.new("Frame")
-knob.Size = UDim2.fromOffset(14, 14)
-knob.AnchorPoint = Vector2.new(.5, .5)
-knob.Position = UDim2.new(.95, 0, .5, 0)
-knob.BackgroundColor3 = THEME.WHITE
-knob.BorderSizePixel = 0
-knob.Active = true
-knob.Parent = track
-round(knob, 8)
-
-local opacityDragging = false
-
-local function setOpacityFromX(x)
-	local left = track.AbsolutePosition.X
-	local width = track.AbsoluteSize.X
-	local ratio = math.clamp((x - left) / width, 0, 1)
-
-	-- Snap in 10% increments, as requested.
-	ratio = math.floor(ratio * 10 + .5) / 10
-
-	local percent = math.floor(ratio * 100 + .5)
-	bgTransparency = 1 - ratio
-	main.BackgroundTransparency = bgTransparency
-
-	fill.Size = UDim2.fromScale(ratio, 1)
-	knob.Position = UDim2.new(ratio, 0, .5, 0)
-	opacityValue.Text = tostring(percent) .. "%"
-end
-
-local function beginOpacityDrag(input)
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	opacityDragging = true
-	setOpacityFromX(input.Position.X)
-end
-
-track.InputBegan:Connect(beginOpacityDrag)
-fill.InputBegan:Connect(beginOpacityDrag)
-knob.InputBegan:Connect(beginOpacityDrag)
-
-UserInputService.InputChanged:Connect(function(input)
-	if opacityDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		setOpacityFromX(input.Position.X)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		opacityDragging = false
-	end
-end)
-
--- Navigation
-local function page(name)
-	home.Visible = name == "Home"
+-- PAGE SWITCHER
+local function showPage(name)
+	home.Visible    = name == "Home"
 	modules.Visible = name == "Modules"
 	settings.Visible = name == "Settings"
+	ringPage.Visible = name == "Ring"
 
-	homeBtn.BackgroundColor3 = name == "Home" and THEME.HOVER or THEME.BUTTON
+	homeBtn.BackgroundColor3    = name == "Home"    and THEME.HOVER or THEME.BUTTON
 	modulesBtn.BackgroundColor3 = name == "Modules" and THEME.HOVER or THEME.BUTTON
 	settingsBtn.BackgroundColor3 = name == "Settings" and THEME.HOVER or THEME.BUTTON
+	ringNav.BackgroundColor3    = name == "Ring"    and THEME.HOVER or THEME.BUTTON
 end
 
+homeBtn.MouseButton1Click:Connect(function()    click() showPage("Home") end)
+modulesBtn.MouseButton1Click:Connect(function() click() showPage("Modules") end)
+settingsBtn.MouseButton1Click:Connect(function() click() showPage("Settings") end)
+ringNav.MouseButton1Click:Connect(function()    click() showPage("Ring") end)
 
--- Playtime
+headerSettings.MouseButton1Click:Connect(function()
+	click()
+	showPage("Settings")
+end)
+
+-- Start on Home
+showPage("Home")
+
+-- Playtime ticker
 task.spawn(function()
 	while gui.Parent do
 		playValue.Text = timeString(os.clock() - sessionStart)
@@ -618,8 +629,7 @@ task.spawn(function()
 	end
 end)
 
--- Smart drag/click detection.
--- A click is preserved unless the pointer moves more than the threshold.
+-- Drag logic — main window (header bar only)
 local DRAG_THRESHOLD = 6
 
 local mainPressed = false
@@ -629,7 +639,6 @@ local mainStartPos
 
 main.InputBegan:Connect(function(input)
 	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-
 	local y = input.Position.Y - main.AbsolutePosition.Y
 	if y <= 74 then
 		mainPressed = true
@@ -639,6 +648,7 @@ main.InputBegan:Connect(function(input)
 	end
 end)
 
+-- Drag logic — launcher button
 local launcherPressed = false
 local launcherDragging = false
 local launcherDidDrag = false
@@ -647,7 +657,6 @@ local launcherStartPos
 
 launcher.InputBegan:Connect(function(input)
 	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-
 	launcherPressed = true
 	launcherDragging = false
 	launcherDidDrag = false
@@ -660,11 +669,9 @@ UserInputService.InputChanged:Connect(function(input)
 
 	if mainPressed then
 		local delta = input.Position - mainDragStart
-
 		if not mainDragging and delta.Magnitude >= DRAG_THRESHOLD then
 			mainDragging = true
 		end
-
 		if mainDragging then
 			main.Position = UDim2.new(
 				mainStartPos.X.Scale,
@@ -677,12 +684,10 @@ UserInputService.InputChanged:Connect(function(input)
 
 	if launcherPressed then
 		local delta = input.Position - launcherDragStart
-
 		if not launcherDragging and delta.Magnitude >= DRAG_THRESHOLD then
 			launcherDragging = true
 			launcherDidDrag = true
 		end
-
 		if launcherDragging then
 			launcher.Position = UDim2.new(
 				launcherStartPos.X.Scale,
@@ -698,13 +703,25 @@ UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		mainPressed = false
 		mainDragging = false
-
 		launcherPressed = false
 		launcherDragging = false
 	end
 end)
 
--- Open/close
+-- Opacity slider global drag
+UserInputService.InputChanged:Connect(function(input)
+	if opacityDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		setOpacityFromX(input.Position.X)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		opacityDragging = false
+	end
+end)
+
+-- Open / close toggle
 local function toggle()
 	if busy then return end
 	busy = true
@@ -714,7 +731,6 @@ local function toggle()
 	if opened then
 		main.Visible = true
 		main.Size = UDim2.fromOffset(0, 0)
-
 		local tween = TweenService:Create(
 			main,
 			TweenInfo.new(.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
@@ -737,9 +753,6 @@ local function toggle()
 end
 
 launcher.MouseButton1Click:Connect(function()
-	-- Roblox fires MouseButton1Click after mouse-up even if the pointer
-	-- moved slightly. Only suppress the action when our drag threshold
-	-- was actually crossed.
 	if launcherDidDrag then
 		launcherDidDrag = false
 		return
