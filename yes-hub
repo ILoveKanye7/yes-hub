@@ -103,7 +103,7 @@ end
 local function fmtTime(secs)
 	secs = math.floor(secs)
 	local h = math.floor(secs / 3600)
-	local m = math.floor((secs % 3600) % 60 / 60)  -- kept simple
+	local m = math.floor((secs % 3600) % 60 / 60)
 	local s2= secs % 60
 	m = math.floor((secs % 3600) / 60)
 	if h > 0 then return string.format("%02dh %02dm %02ds", h, m, s2) end
@@ -112,12 +112,9 @@ end
 
 ------------------------------------------------------------------------
 -- SHARED ROW FACTORIES
--- makeToggle  → returns { get() }
--- makeNumRow  → returns { get(), set(v) }
--- Both accept (parent, label, yOff, ...) and build inside parent.
 ------------------------------------------------------------------------
 local ROW_H   = 40
-local ROW_PAD = 12   -- left/right inset inside the card
+local ROW_PAD = 12
 
 local function makeToggle(parent, label, yOff, initial, onChange)
 	local row = Instance.new("Frame")
@@ -167,9 +164,6 @@ local function makeToggle(parent, label, yOff, initial, onChange)
 	return { get = function() return state end }
 end
 
--- makeNumRow: a row with label on left, [−] [box] [+] on right
--- params: parent, label, yOff, default, min, max, step
--- returns { get(), set(v) }
 local NUM_BTN_W = 28
 local NUM_BOX_W = 52
 local NUM_GAP   = 4
@@ -188,7 +182,6 @@ local function makeNumRow(parent, label, yOff, default, minVal, maxVal, step, on
 	lbl.Size     = UDim2.new(1, -180, 1, 0)
 	lbl.Position = UDim2.fromOffset(12, 0)
 
-	-- + button (rightmost)
 	local bPlus = Instance.new("TextButton")
 	bPlus.Size             = UDim2.fromOffset(NUM_BTN_W, ROW_H - 12)
 	bPlus.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W, .5, -(ROW_H - 12) / 2)
@@ -203,7 +196,6 @@ local function makeNumRow(parent, label, yOff, default, minVal, maxVal, step, on
 	corner(bPlus, 6)
 	outline(bPlus)
 
-	-- text box (middle)
 	local box = Instance.new("TextBox")
 	box.Size             = UDim2.fromOffset(NUM_BOX_W, ROW_H - 12)
 	box.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W - NUM_GAP - NUM_BOX_W, .5, -(ROW_H - 12) / 2)
@@ -219,7 +211,6 @@ local function makeNumRow(parent, label, yOff, default, minVal, maxVal, step, on
 	corner(box, 6)
 	outline(box)
 
-	-- − button (left of box)
 	local bMinus = Instance.new("TextButton")
 	bMinus.Size             = UDim2.fromOffset(NUM_BTN_W, ROW_H - 12)
 	bMinus.Position         = UDim2.new(1, -NUM_MAR - NUM_BTN_W - NUM_GAP - NUM_BOX_W - NUM_GAP - NUM_BTN_W, .5, -(ROW_H - 12) / 2)
@@ -234,7 +225,6 @@ local function makeNumRow(parent, label, yOff, default, minVal, maxVal, step, on
 	corner(bMinus, 6)
 	outline(bMinus)
 
-	-- hover tints
 	for _, b in ipairs({bPlus, bMinus}) do
 		b.MouseEnter:Connect(function()
 			TweenService:Create(b, TweenInfo.new(.1), {BackgroundColor3 = T.BORDER}):Play()
@@ -350,7 +340,6 @@ divider.Parent                = main
 
 ------------------------------------------------------------------------
 -- SIDEBAR NAV
--- Pages: Home | Ring | Player | Modules | Settings
 ------------------------------------------------------------------------
 local navLabel = mkLabel(main, "Navigation", 9)
 navLabel.Size       = UDim2.fromOffset(125, 16)
@@ -403,7 +392,6 @@ homeSubLbl.Size       = UDim2.new(1, -8, 0, 16)
 homeSubLbl.Position   = UDim2.fromOffset(4, 32)
 homeSubLbl.TextColor3 = T.MUTED
 
--- Player info card
 local playerCard = Instance.new("Frame")
 playerCard.Size                  = UDim2.new(1, -8, 0, 108)
 playerCard.Position              = UDim2.fromOffset(4, 54)
@@ -436,7 +424,6 @@ homeIdLbl.Size       = UDim2.new(1, -110, 0, 16)
 homeIdLbl.Position   = UDim2.fromOffset(100, 60)
 homeIdLbl.TextColor3 = T.MUTED
 
--- Playtime + Status side by side
 local playtimeCard = Instance.new("Frame")
 playtimeCard.Size                  = UDim2.new(.5, -6, 0, 62)
 playtimeCard.Position              = UDim2.fromOffset(4, 170)
@@ -520,7 +507,6 @@ ringCardSubLbl.Size       = UDim2.new(1, -24, 0, 16)
 ringCardSubLbl.Position   = UDim2.fromOffset(12, 30)
 ringCardSubLbl.TextColor3 = T.MUTED
 
--- Ring status text — updated by toggle onChange
 local ringStatusLbl = mkLabel(pageRing, "Ring is currently disabled.", 10)
 ringStatusLbl.Size       = UDim2.new(1, -8, 0, 16)
 ringStatusLbl.Position   = UDim2.fromOffset(4, 302)
@@ -559,7 +545,6 @@ playerPageSubLbl.Size       = UDim2.new(1, -8, 0, 16)
 playerPageSubLbl.Position   = UDim2.fromOffset(4, 32)
 playerPageSubLbl.TextColor3 = T.MUTED
 
--- Scrolling frame so all configs fit without clipping
 local playerScroll = Instance.new("ScrollingFrame")
 playerScroll.Size                  = UDim2.new(1, -4, 1, -56)
 playerScroll.Position              = UDim2.fromOffset(4, 54)
@@ -567,11 +552,10 @@ playerScroll.BackgroundTransparency = 1
 playerScroll.BorderSizePixel       = 0
 playerScroll.ScrollBarThickness    = 3
 playerScroll.ScrollBarImageColor3  = T.BORDER
-playerScroll.CanvasSize            = UDim2.fromOffset(0, 0)  -- set below
+playerScroll.CanvasSize            = UDim2.fromOffset(0, 0)
 playerScroll.ClipsDescendants      = true
 playerScroll.Parent                = pagePlayer
 
--- Card inside scroll
 local playerCfgCard = Instance.new("Frame")
 playerCfgCard.BackgroundColor3      = T.PANEL
 playerCfgCard.BackgroundTransparency = .12
@@ -589,16 +573,14 @@ playerCfgSubLbl.Size       = UDim2.new(1, -24, 0, 16)
 playerCfgSubLbl.Position   = UDim2.fromOffset(12, 30)
 playerCfgSubLbl.TextColor3 = T.MUTED
 
--- Helper: get humanoid safely
 local function getHumanoid()
 	local char = player.Character
 	if not char then return nil end
 	return char:FindFirstChildOfClass("Humanoid")
 end
 
--- Row layout tracker
-local PC_ROW_START = 54   -- y inside playerCfgCard after the header
-local PC_ROW_STEP  = 48   -- gap between rows
+local PC_ROW_START = 54
+local PC_ROW_STEP  = 48
 local pcRowCount   = 0
 
 local function nextY()
@@ -608,22 +590,27 @@ local function nextY()
 end
 
 --========================================================
--- FLY SYSTEM
+-- FLY SYSTEM (LinearVelocity + BodyGyro)
 --========================================================
 local flyActive = false
-local flyBodyVelocity = nil
+local flyAttachment = nil
+local flyLinearVelocity = nil
 local flyBodyGyro = nil
-local flyHeartbeat = nil
+local flyRenderStepped = nil
 
 local function stopFly()
 	flyActive = false
-	if flyHeartbeat then
-		flyHeartbeat:Disconnect()
-		flyHeartbeat = nil
+	if flyRenderStepped then
+		flyRenderStepped:Disconnect()
+		flyRenderStepped = nil
 	end
-	if flyBodyVelocity then
-		flyBodyVelocity:Destroy()
-		flyBodyVelocity = nil
+	if flyAttachment then
+		flyAttachment:Destroy()
+		flyAttachment = nil
+	end
+	if flyLinearVelocity then
+		flyLinearVelocity:Destroy()
+		flyLinearVelocity = nil
 	end
 	if flyBodyGyro then
 		flyBodyGyro:Destroy()
@@ -632,6 +619,11 @@ local function stopFly()
 	local hum = getHumanoid()
 	if hum then
 		hum.PlatformStand = false
+	end
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
 	end
 end
 
@@ -647,11 +639,20 @@ local function startFly()
 
 	hum.PlatformStand = true
 
-	flyBodyVelocity = Instance.new("BodyVelocity")
-	flyBodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
-	flyBodyVelocity.Velocity = Vector3.zero
-	flyBodyVelocity.Parent = root
+	-- Create attachment and linear velocity
+	flyAttachment = Instance.new("Attachment")
+	flyAttachment.Name = "FlightAttachment"
+	flyAttachment.Parent = root
 
+	flyLinearVelocity = Instance.new("LinearVelocity")
+	flyLinearVelocity.Name = "FlightVelocity"
+	flyLinearVelocity.MaxForce = math.huge
+	flyLinearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector3
+	flyLinearVelocity.Attachment0 = flyAttachment
+	flyLinearVelocity.VectorVelocity = Vector3.zero
+	flyLinearVelocity.Parent = root
+
+	-- BodyGyro to keep orientation facing camera direction
 	flyBodyGyro = Instance.new("BodyGyro")
 	flyBodyGyro.MaxForce = Vector3.new(40000, 40000, 40000)
 	flyBodyGyro.D = 500
@@ -661,7 +662,7 @@ local function startFly()
 
 	flyActive = true
 
-	flyHeartbeat = RunService.Heartbeat:Connect(function()
+	flyRenderStepped = RunService.RenderStepped:Connect(function()
 		if not flyActive then return end
 		local c = player.Character
 		local hrp = c and c:FindFirstChild("HumanoidRootPart")
@@ -670,9 +671,10 @@ local function startFly()
 		local camera = workspace.CurrentCamera
 		if not camera then return end
 
+		-- Get current fly speed from UI row
 		local speed = flySpeedRow and flySpeedRow.get() or 50
-		local moveDir = Vector3.zero
 
+		local moveDir = Vector3.zero
 		local camCF = camera.CFrame
 
 		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
@@ -698,18 +700,20 @@ local function startFly()
 			moveDir = moveDir.Unit
 		end
 
-		flyBodyVelocity.Velocity = moveDir * speed
+		flyLinearVelocity.VectorVelocity = moveDir * speed
 
-		-- Keep character facing camera direction horizontally
+		-- Rotate character to face the camera's horizontal direction
 		local look = camera.CFrame.LookVector
-		local horizontalLook = Vector3.new(look.X, 0, look.Z).Unit
+		local horizontalLook = Vector3.new(look.X, 0, look.Z)
 		if horizontalLook.Magnitude > 0 then
-			flyBodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + horizontalLook)
+			flyBodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + horizontalLook.Unit)
 		end
 	end)
 end
 
--- FLY toggle (with actual functionality)
+-- Fly Speed row must be defined BEFORE the Fly toggle so startFly can access it
+local flySpeedRow = makeNumRow(playerCfgCard, "Fly Speed", nextY(), 50, 1, 500, 5)
+
 local toggleFly = makeToggle(playerCfgCard, "Fly", nextY(), false, function(state)
 	if state then
 		startFly()
@@ -718,22 +722,19 @@ local toggleFly = makeToggle(playerCfgCard, "Fly", nextY(), false, function(stat
 	end
 end)
 
--- FLY SPEED row (controls speed)
-local flySpeedRow = makeNumRow(playerCfgCard, "Fly Speed", nextY(), 50, 1, 500, 5)
-
--- WALK SPEED  (default 16, range 0–500, step 1)
+-- WALK SPEED
 local wsRow = makeNumRow(playerCfgCard, "Walk Speed", nextY(), 16, 0, 500, 1, function(v)
 	local h = getHumanoid()
 	if h then h.WalkSpeed = v end
 end)
 
--- JUMP POWER  (default 50, range 0–500, step 5)
+-- JUMP POWER
 local jpRow = makeNumRow(playerCfgCard, "Jump Power", nextY(), 50, 0, 500, 5, function(v)
 	local h = getHumanoid()
 	if h then h.JumpPower = v end
 end)
 
--- GRAVITY (default 196.2, range 0–1000, step 10 — set via Workspace)
+-- GRAVITY
 local gravRow = makeNumRow(playerCfgCard, "Gravity", nextY(), 196, 0, 1000, 10, function(v)
 	workspace.Gravity = v
 end)
@@ -759,7 +760,6 @@ local toggleNoclip = makeToggle(playerCfgCard, "Noclip", nextY(), false, functio
 			noclipConn:Disconnect()
 			noclipConn = nil
 		end
-		-- restore collision
 		local char = player.Character
 		if char then
 			for _, p in ipairs(char:GetDescendants()) do
@@ -771,7 +771,7 @@ local toggleNoclip = makeToggle(playerCfgCard, "Noclip", nextY(), false, functio
 	end
 end)
 
--- INFINITE JUMP toggle
+-- INFINITE JUMP
 local infJumpConn
 
 local toggleInfJump = makeToggle(playerCfgCard, "Infinite Jump", nextY(), false, function(state)
@@ -788,24 +788,13 @@ local toggleInfJump = makeToggle(playerCfgCard, "Infinite Jump", nextY(), false,
 	end
 end)
 
--- GHOST MODE toggle (client-sided, 50% opacity, purely visual —
--- movement, jump, and speed all stay completely normal)
+-- GHOST MODE
 local ghostOrigTransp = {}
 local ghostDescConn
 
 local toggleGhost = makeToggle(playerCfgCard, "Ghost Mode", nextY(), false, function(state)
 	local char = player.Character
 	if not char then return end
-
-	local function applyGhost()
-		local c = player.Character
-		if not c then return end
-		for _, p in ipairs(c:GetDescendants()) do
-			if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-				p.LocalTransparencyModifier = 0.5
-			end
-		end
-	end
 
 	if state then
 		ghostOrigTransp = {}
@@ -815,7 +804,6 @@ local toggleGhost = makeToggle(playerCfgCard, "Ghost Mode", nextY(), false, func
 				p.LocalTransparencyModifier = 0.5
 			end
 		end
-		-- keep re-applying as parts stream in/change, since this is purely cosmetic
 		ghostDescConn = char.DescendantAdded:Connect(function(d)
 			if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" then
 				task.defer(function()
@@ -839,7 +827,7 @@ local toggleGhost = makeToggle(playerCfgCard, "Ghost Mode", nextY(), false, func
 	end
 end)
 
--- SPEED BOOST toggle (×2 walk speed while on)
+-- SPEED BOOST
 local speedBoostOrigWS
 
 local toggleSpeedBoost = makeToggle(playerCfgCard, "Speed Boost ×2", nextY(), false, function(state)
@@ -855,7 +843,7 @@ local toggleSpeedBoost = makeToggle(playerCfgCard, "Speed Boost ×2", nextY(), f
 	end
 end)
 
--- SIZE: scale whole character
+-- CHAR SCALE
 local charScaleRow = makeNumRow(playerCfgCard, "Char Scale ×", nextY(), 1, 1, 10, 1, function(v)
 	local char = player.Character
 	if not char then return end
@@ -870,7 +858,7 @@ local charScaleRow = makeNumRow(playerCfgCard, "Char Scale ×", nextY(), 1, 1, 1
 	pcall(function() hum:ApplyDescription(desc) end)
 end)
 
--- Freeze toggle (anchor root part)
+-- FREEZE
 local toggleFreeze = makeToggle(playerCfgCard, "Freeze", nextY(), false, function(state)
 	local char = player.Character
 	if not char then return end
@@ -880,9 +868,8 @@ local toggleFreeze = makeToggle(playerCfgCard, "Freeze", nextY(), false, functio
 	end
 end)
 
--- Total rows × step + header height = card height
+-- Card height update
 local totalCardH = PC_ROW_START + pcRowCount * PC_ROW_STEP + 12
-
 playerCfgCard.Size       = UDim2.new(1, -4, 0, totalCardH)
 playerCfgCard.Position   = UDim2.fromOffset(0, 0)
 playerScroll.CanvasSize  = UDim2.fromOffset(0, totalCardH + 8)
@@ -928,7 +915,6 @@ settingsSubLbl.Size       = UDim2.new(1, -8, 0, 16)
 settingsSubLbl.Position   = UDim2.fromOffset(4, 32)
 settingsSubLbl.TextColor3 = T.MUTED
 
--- Settings card
 local settingsCard = Instance.new("Frame")
 settingsCard.Size                  = UDim2.new(1, -8, 0, 180)
 settingsCard.Position              = UDim2.fromOffset(4, 54)
@@ -943,7 +929,6 @@ local settingsCardTitleLbl = mkLabel(settingsCard, "Display", 13)
 settingsCardTitleLbl.Size     = UDim2.new(1, -24, 0, 22)
 settingsCardTitleLbl.Position = UDim2.fromOffset(12, 10)
 
--- OPACITY SLIDER  (y=38 inside settingsCard)
 local opRowH = 54
 local opRow  = Instance.new("Frame")
 opRow.Size             = UDim2.new(1, -24, 0, opRowH)
@@ -1012,7 +997,6 @@ opTrack.InputBegan:Connect(startOpDrag)
 opFill.InputBegan:Connect(startOpDrag)
 opKnob.InputBegan:Connect(startOpDrag)
 
--- HIDE MENU BUTTON toggle  (row inside settingsCard)
 local hideMenuToggle = makeToggle(settingsCard, "Hide Menu Button", 36 + opRowH + 8, false, function(state)
 	launcher.Visible = not state
 	menuVisible = not state
@@ -1079,7 +1063,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------------------
--- INPUT: single InputChanged + InputEnded for all drag
+-- INPUT: DRAG
 ------------------------------------------------------------------------
 local DRAG_THRESH = 6
 
@@ -1189,20 +1173,17 @@ UserInputService.InputBegan:Connect(function(i, processed)
 end)
 
 ------------------------------------------------------------------------
--- Respawn handling: re-apply active player settings on character load
+-- Respawn handling
 ------------------------------------------------------------------------
 player.CharacterAdded:Connect(function(char)
-	-- Give the character a frame to fully load
 	task.wait(0.1)
 
 	local h = char:WaitForChild("Humanoid", 5)
 	if not h then return end
 
-	-- Re-apply numeric values
 	h.WalkSpeed = wsRow.get()
 	h.JumpPower = jpRow.get()
 
-	-- Re-apply noclip connection
 	if noclipActive then
 		if noclipConn then noclipConn:Disconnect() end
 		noclipConn = RunService.Stepped:Connect(function()
@@ -1214,12 +1195,9 @@ player.CharacterAdded:Connect(function(char)
 		end)
 	end
 
-	-- If flying was active, stop flying (user can toggle again)
 	if flyActive then
 		stopFly()
 	end
-
-	-- Gravity persists on workspace, no action needed
 end)
 
 -- Initial state
