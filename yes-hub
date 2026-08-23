@@ -334,9 +334,10 @@ iyButton.TextXAlignment = Enum.TextXAlignment.Center
 
 iyButton.MouseButton1Click:Connect(function()
 	click()
-	-- Remote loadstring execution was intentionally not included.
-	-- Put your own trusted/local module call here if this is for your own game.
-	statusText.Text = "Infinite Yield button pressed."
+	-- Remote loadstring execution is intentionally not embedded here.
+	-- For a game you own, connect this button to your own trusted ModuleScript
+	-- or explicitly approved local implementation.
+	statusText.Text = "Infinite Yield module is not configured."
 end)
 
 -- MODULES
@@ -402,6 +403,7 @@ for i, optionName in ipairs(superRingOptions) do
 	b.Size = UDim2.new(1, -5, 0, 34)
 	b.Text = optionName
 	b.TextXAlignment = Enum.TextXAlignment.Center
+	b.TextYAlignment = Enum.TextYAlignment.Center
 
 	b.MouseButton1Click:Connect(function()
 		click()
@@ -477,11 +479,9 @@ bgBtn.MouseButton1Click:Connect(function()
 	click()
 end)
 
--- Draggable background-opacity slider. Each keyboard/mouse step is 10%.
-opacityBtn:Destroy()
-
+-- Compact draggable background-opacity slider.
 local opacityHolder = Instance.new("Frame")
-opacityHolder.Size = UDim2.new(1, -8, 0, 58)
+opacityHolder.Size = UDim2.new(1, -8, 0, 48)
 opacityHolder.Position = UDim2.fromOffset(4, 106)
 opacityHolder.BackgroundColor3 = THEME.BUTTON
 opacityHolder.BorderSizePixel = 0
@@ -490,39 +490,40 @@ round(opacityHolder, 8)
 stroke(opacityHolder)
 
 local opacityTitle = text(opacityHolder, "Background opacity", 11)
-opacityTitle.Size = UDim2.fromOffset(170, 22)
-opacityTitle.Position = UDim2.fromOffset(12, 7)
+opacityTitle.Size = UDim2.fromOffset(150, 20)
+opacityTitle.Position = UDim2.fromOffset(12, 6)
 
 local opacityValue = text(opacityHolder, "95%", 11)
-opacityValue.Size = UDim2.fromOffset(60, 22)
-opacityValue.Position = UDim2.new(1, -72, 0, 7)
+opacityValue.Size = UDim2.fromOffset(50, 20)
+opacityValue.Position = UDim2.new(1, -62, 0, 6)
 opacityValue.TextXAlignment = Enum.TextXAlignment.Right
 
 local track = Instance.new("Frame")
-track.Size = UDim2.new(1, -170, 0, 6)
-track.Position = UDim2.fromOffset(12, 39)
+track.Size = UDim2.new(1, -24, 0, 5)
+track.Position = UDim2.fromOffset(12, 32)
 track.BackgroundColor3 = THEME.BORDER
 track.BorderSizePixel = 0
+track.Active = true
 track.Parent = opacityHolder
-round(track, 6)
+round(track, 5)
 
 local fill = Instance.new("Frame")
-fill.Size = UDim2.fromScale(0.95, 1)
+fill.Size = UDim2.fromScale(.95, 1)
 fill.BackgroundColor3 = THEME.WHITE
 fill.BorderSizePixel = 0
+fill.Active = true
 fill.Parent = track
-round(fill, 6)
+round(fill, 5)
 
-local knob = Instance.new("TextButton")
-knob.Size = UDim2.fromOffset(16, 16)
+local knob = Instance.new("Frame")
+knob.Size = UDim2.fromOffset(14, 14)
 knob.AnchorPoint = Vector2.new(.5, .5)
 knob.Position = UDim2.new(.95, 0, .5, 0)
 knob.BackgroundColor3 = THEME.WHITE
 knob.BorderSizePixel = 0
-knob.Text = ""
-knob.AutoButtonColor = false
+knob.Active = true
 knob.Parent = track
-round(knob, 10)
+round(knob, 8)
 
 local opacityDragging = false
 
@@ -531,25 +532,27 @@ local function setOpacityFromX(x)
 	local width = track.AbsoluteSize.X
 	local ratio = math.clamp((x - left) / width, 0, 1)
 
-	-- Snap to 10% increments.
+	-- Snap in 10% increments, as requested.
 	ratio = math.floor(ratio * 10 + .5) / 10
 
-	-- Transparency is inverse opacity.
-	local opacityPercent = math.floor(ratio * 100 + .5)
+	local percent = math.floor(ratio * 100 + .5)
 	bgTransparency = 1 - ratio
 	main.BackgroundTransparency = bgTransparency
 
 	fill.Size = UDim2.fromScale(ratio, 1)
 	knob.Position = UDim2.new(ratio, 0, .5, 0)
-	opacityValue.Text = tostring(opacityPercent) .. "%"
+	opacityValue.Text = tostring(percent) .. "%"
 end
 
-track.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		opacityDragging = true
-		setOpacityFromX(input.Position.X)
-	end
-end)
+local function beginOpacityDrag(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	opacityDragging = true
+	setOpacityFromX(input.Position.X)
+end
+
+track.InputBegan:Connect(beginOpacityDrag)
+fill.InputBegan:Connect(beginOpacityDrag)
+knob.InputBegan:Connect(beginOpacityDrag)
 
 UserInputService.InputChanged:Connect(function(input)
 	if opacityDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -561,15 +564,6 @@ UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		opacityDragging = false
 	end
-end)
-
-launcherBtn.MouseButton1Click:Connect(function()
-	launcherEnabled = not launcherEnabled
-	launcher.Visible = launcherEnabled
-	launcherBtn.Text = launcherEnabled
-		and "Launcher button  •  Visible"
-		or "Launcher button  •  Hidden"
-	click()
 end)
 
 -- Navigation
@@ -595,7 +589,11 @@ task.spawn(function()
 	end
 end)
 
--- Drag the main window by its title/header area.
+-- Smart drag/click detection.
+-- A click is preserved unless the pointer moves more than the threshold.
+local DRAG_THRESHOLD = 6
+
+local mainPressed = false
 local mainDragging = false
 local mainDragStart
 local mainStartPos
@@ -605,20 +603,25 @@ main.InputBegan:Connect(function(input)
 
 	local y = input.Position.Y - main.AbsolutePosition.Y
 	if y <= 74 then
-		mainDragging = true
+		mainPressed = true
+		mainDragging = false
 		mainDragStart = input.Position
 		mainStartPos = main.Position
 	end
 end)
 
--- Drag the Y launcher itself by holding the Y icon.
+local launcherPressed = false
 local launcherDragging = false
+local launcherDidDrag = false
 local launcherDragStart
 local launcherStartPos
 
 launcher.InputBegan:Connect(function(input)
 	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	launcherDragging = true
+
+	launcherPressed = true
+	launcherDragging = false
+	launcherDidDrag = false
 	launcherDragStart = input.Position
 	launcherStartPos = launcher.Position
 end)
@@ -626,28 +629,48 @@ end)
 UserInputService.InputChanged:Connect(function(input)
 	if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 
-	if mainDragging then
+	if mainPressed then
 		local delta = input.Position - mainDragStart
-		main.Position = UDim2.new(
-			mainStartPos.X.Scale,
-			mainStartPos.X.Offset + delta.X,
-			mainStartPos.Y.Scale,
-			mainStartPos.Y.Offset + delta.Y
-		)
-	elseif launcherDragging then
+
+		if not mainDragging and delta.Magnitude >= DRAG_THRESHOLD then
+			mainDragging = true
+		end
+
+		if mainDragging then
+			main.Position = UDim2.new(
+				mainStartPos.X.Scale,
+				mainStartPos.X.Offset + delta.X,
+				mainStartPos.Y.Scale,
+				mainStartPos.Y.Offset + delta.Y
+			)
+		end
+	end
+
+	if launcherPressed then
 		local delta = input.Position - launcherDragStart
-		launcher.Position = UDim2.new(
-			launcherStartPos.X.Scale,
-			launcherStartPos.X.Offset + delta.X,
-			launcherStartPos.Y.Scale,
-			launcherStartPos.Y.Offset + delta.Y
-		)
+
+		if not launcherDragging and delta.Magnitude >= DRAG_THRESHOLD then
+			launcherDragging = true
+			launcherDidDrag = true
+		end
+
+		if launcherDragging then
+			launcher.Position = UDim2.new(
+				launcherStartPos.X.Scale,
+				launcherStartPos.X.Offset + delta.X,
+				launcherStartPos.Y.Scale,
+				launcherStartPos.Y.Offset + delta.Y
+			)
+		end
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		mainPressed = false
 		mainDragging = false
+
+		launcherPressed = false
 		launcherDragging = false
 	end
 end)
@@ -684,16 +707,12 @@ local function toggle()
 	busy = false
 end
 
-local launcherMoved = false
-launcher.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement then
-		launcherMoved = true
-	end
-end)
-
 launcher.MouseButton1Click:Connect(function()
-	if launcherMoved then
-		launcherMoved = false
+	-- Roblox fires MouseButton1Click after mouse-up even if the pointer
+	-- moved slightly. Only suppress the action when our drag threshold
+	-- was actually crossed.
+	if launcherDidDrag then
+		launcherDidDrag = false
 		return
 	end
 	toggle()
