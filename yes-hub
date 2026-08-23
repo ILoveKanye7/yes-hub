@@ -483,16 +483,6 @@ statusTextLbl.Size       = UDim2.new(1, -20, 0, 16)
 statusTextLbl.Position   = UDim2.fromOffset(10, 34)
 statusTextLbl.TextColor3 = T.MUTED
 
--- Infinite Yield button
-local iyButton = mkButton(pageHome, "Infinite Yield")
-iyButton.Size     = UDim2.new(1, -8, 0, 34)
-iyButton.Position = UDim2.fromOffset(4, 240)
-
-iyButton.MouseButton1Click:Connect(function()
-	playClick()
-	statusTextLbl.Text = "Infinite Yield not configured."
-end)
-
 ------------------------------------------------------------------------
 -- PAGE: RING
 ------------------------------------------------------------------------
@@ -617,6 +607,120 @@ local function nextY()
 	return y
 end
 
+--========================================================
+-- FLY SYSTEM
+--========================================================
+local flyActive = false
+local flyBodyVelocity = nil
+local flyBodyGyro = nil
+local flyHeartbeat = nil
+
+local function stopFly()
+	flyActive = false
+	if flyHeartbeat then
+		flyHeartbeat:Disconnect()
+		flyHeartbeat = nil
+	end
+	if flyBodyVelocity then
+		flyBodyVelocity:Destroy()
+		flyBodyVelocity = nil
+	end
+	if flyBodyGyro then
+		flyBodyGyro:Destroy()
+		flyBodyGyro = nil
+	end
+	local hum = getHumanoid()
+	if hum then
+		hum.PlatformStand = false
+	end
+end
+
+local function startFly()
+	local char = player.Character
+	local hum = getHumanoid()
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not char or not hum or not root then
+		return
+	end
+
+	stopFly() -- clean any existing flight
+
+	hum.PlatformStand = true
+
+	flyBodyVelocity = Instance.new("BodyVelocity")
+	flyBodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
+	flyBodyVelocity.Velocity = Vector3.zero
+	flyBodyVelocity.Parent = root
+
+	flyBodyGyro = Instance.new("BodyGyro")
+	flyBodyGyro.MaxForce = Vector3.new(40000, 40000, 40000)
+	flyBodyGyro.D = 500
+	flyBodyGyro.P = 5000
+	flyBodyGyro.CFrame = root.CFrame
+	flyBodyGyro.Parent = root
+
+	flyActive = true
+
+	flyHeartbeat = RunService.Heartbeat:Connect(function()
+		if not flyActive then return end
+		local c = player.Character
+		local hrp = c and c:FindFirstChild("HumanoidRootPart")
+		if not c or not hrp then return end
+
+		local camera = workspace.CurrentCamera
+		if not camera then return end
+
+		local speed = flySpeedRow and flySpeedRow.get() or 50
+		local moveDir = Vector3.zero
+
+		local camCF = camera.CFrame
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+			moveDir = moveDir + camCF.LookVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+			moveDir = moveDir - camCF.LookVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+			moveDir = moveDir - camCF.RightVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+			moveDir = moveDir + camCF.RightVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+			moveDir = moveDir + Vector3.new(0, 1, 0)
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+			moveDir = moveDir - Vector3.new(0, 1, 0)
+		end
+
+		if moveDir.Magnitude > 0 then
+			moveDir = moveDir.Unit
+		end
+
+		flyBodyVelocity.Velocity = moveDir * speed
+
+		-- Keep character facing camera direction horizontally
+		local look = camera.CFrame.LookVector
+		local horizontalLook = Vector3.new(look.X, 0, look.Z).Unit
+		if horizontalLook.Magnitude > 0 then
+			flyBodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + horizontalLook)
+		end
+	end)
+end
+
+-- FLY toggle (with actual functionality)
+local toggleFly = makeToggle(playerCfgCard, "Fly", nextY(), false, function(state)
+	if state then
+		startFly()
+	else
+		stopFly()
+	end
+end)
+
+-- FLY SPEED row (controls speed)
+local flySpeedRow = makeNumRow(playerCfgCard, "Fly Speed", nextY(), 50, 1, 500, 5)
+
 -- WALK SPEED  (default 16, range 0–500, step 1)
 local wsRow = makeNumRow(playerCfgCard, "Walk Speed", nextY(), 16, 0, 500, 1, function(v)
 	local h = getHumanoid()
@@ -627,23 +731,6 @@ end)
 local jpRow = makeNumRow(playerCfgCard, "Jump Power", nextY(), 50, 0, 500, 5, function(v)
 	local h = getHumanoid()
 	if h then h.JumpPower = v end
-end)
-
--- JUMP HEIGHT (default 7.2, range 0–100, step 0.5 — shown as ×10 integer to keep TextBox clean)
--- Using JumpHeight property (Humanoid.UseJumpPower = false path)
-local jhRow = makeNumRow(playerCfgCard, "Jump Height", nextY(), 7, 0, 100, 1, function(v)
-	local h = getHumanoid()
-	if h then
-		pcall(function() h.JumpHeight = v end)
-	end
-end)
-
--- HIP HEIGHT (default 2, range 0–20, step 0.5 → stored ×2 as integer)
-local hhRow = makeNumRow(playerCfgCard, "Hip Height", nextY(), 2, 0, 20, 1, function(v)
-	local h = getHumanoid()
-	if h then
-		pcall(function() h.HipHeight = v end)
-	end
 end)
 
 -- GRAVITY (default 196.2, range 0–1000, step 10 — set via Workspace)
@@ -701,44 +788,54 @@ local toggleInfJump = makeToggle(playerCfgCard, "Infinite Jump", nextY(), false,
 	end
 end)
 
--- GOD MODE toggle (sets MaxHealth+Health to huge number)
-local godOrigMax, godOrigHealth
+-- GHOST MODE toggle (client-sided, 50% opacity, purely visual —
+-- movement, jump, and speed all stay completely normal)
+local ghostOrigTransp = {}
+local ghostDescConn
 
-local toggleGod = makeToggle(playerCfgCard, "God Mode", nextY(), false, function(state)
-	local h = getHumanoid()
-	if not h then return end
-	if state then
-		godOrigMax    = h.MaxHealth
-		godOrigHealth = h.Health
-		h.MaxHealth   = math.huge
-		h.Health      = math.huge
-	else
-		h.MaxHealth = godOrigMax or 100
-		h.Health    = godOrigHealth or 100
-	end
-end)
-
--- INVISIBLE toggle (sets all parts transparency to 1 locally)
-local invisOrigTransp = {}
-
-local toggleInvis = makeToggle(playerCfgCard, "Invisible", nextY(), false, function(state)
+local toggleGhost = makeToggle(playerCfgCard, "Ghost Mode", nextY(), false, function(state)
 	local char = player.Character
 	if not char then return end
-	if state then
-		invisOrigTransp = {}
-		for _, p in ipairs(char:GetDescendants()) do
+
+	local function applyGhost()
+		local c = player.Character
+		if not c then return end
+		for _, p in ipairs(c:GetDescendants()) do
 			if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-				invisOrigTransp[p] = p.LocalTransparencyModifier
-				p.LocalTransparencyModifier = 1
+				p.LocalTransparencyModifier = 0.5
 			end
 		end
+	end
+
+	if state then
+		ghostOrigTransp = {}
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+				ghostOrigTransp[p] = p.LocalTransparencyModifier
+				p.LocalTransparencyModifier = 0.5
+			end
+		end
+		-- keep re-applying as parts stream in/change, since this is purely cosmetic
+		ghostDescConn = char.DescendantAdded:Connect(function(d)
+			if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" then
+				task.defer(function()
+					if toggleGhost.get() then
+						d.LocalTransparencyModifier = 0.5
+					end
+				end)
+			end
+		end)
 	else
-		for p, v in pairs(invisOrigTransp) do
+		if ghostDescConn then
+			ghostDescConn:Disconnect()
+			ghostDescConn = nil
+		end
+		for p, v in pairs(ghostOrigTransp) do
 			if p and p.Parent then
 				p.LocalTransparencyModifier = v
 			end
 		end
-		invisOrigTransp = {}
+		ghostOrigTransp = {}
 	end
 end)
 
@@ -1104,8 +1201,6 @@ player.CharacterAdded:Connect(function(char)
 	-- Re-apply numeric values
 	h.WalkSpeed = wsRow.get()
 	h.JumpPower = jpRow.get()
-	pcall(function() h.JumpHeight = jhRow.get() end)
-	pcall(function() h.HipHeight  = hhRow.get() end)
 
 	-- Re-apply noclip connection
 	if noclipActive then
@@ -1117,6 +1212,11 @@ player.CharacterAdded:Connect(function(char)
 				if p:IsA("BasePart") then p.CanCollide = false end
 			end
 		end)
+	end
+
+	-- If flying was active, stop flying (user can toggle again)
+	if flyActive then
+		stopFly()
 	end
 
 	-- Gravity persists on workspace, no action needed
